@@ -1,0 +1,10 @@
+lives/*.duckdb*
+lives/*.log
+mind/lives/
+__pycache__/
+*.pyc
+measured/state.json
+*.log
+lives/*
+!lives/mouth.npz
+!lives/window

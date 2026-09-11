@@ -1,0 +1,8 @@
+numpy>=2.0
+cupy-cuda12x>=13
+duckdb>=1.0
+praat-parselmouth>=0.4
+mediapipe>=0.10
+vosk>=0.3
+opencv-python>=4.9
+pillow>=10
