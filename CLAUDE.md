@@ -95,8 +95,11 @@ what must match it, and it does.
    side. Nothing is named to her — the fixed slots are the app's bookkeeping so
    her body fills the same place each tick; she only ever sees a number in a
    position. **Her mind never branches on which channel a line came from.**
-2. **A thing seen is what it is and where** — similarity, x, y. **A sound is
-   the same three** — how alike, how loud, which side. Never one line per id.
+2. **A thing seen is what it is and where** — similarity, x, y (one picture, one
+   level, three lines; never per-object). **A sound is four** — how alike
+   (`heard,0`), how loud (`heard,1`), and her two ears (sensors 50, 51), which
+   carry which-side and by-how-much between them. (Balance-as-a-sign was dropped
+   2026-09-12: two ear levels already hold it.) Never one line per id.
 3. **Her hormones are lines like any other. Her own orders are lines like any
    other.**
 
@@ -245,9 +248,15 @@ state actually behaves, not by how finely her ear or her muscles move.**
 18. **Her voice is muscles.** She practises it exactly like her body: one
     muscle to its end, then the next — and **the shape is a chain, not a held
     pose**. Repeating one alone brings nothing, so she chains them.
-19. `loud` (motor 31) is her breath. Noise lives at her folds as well as at a
-    pinch, so she can breathe and make unvoiced sounds.
-20. **No prepared table, no naming a sound, no aiming, and no ruler.** A sound
+19. `loud` (motor 31) is her breath. Her folds are a **glottal flow pulse**
+    (not a sawtooth; `speech._glottis`, 2026-09-12), which her lips
+    differentiate — that is what gives her a voice's spectral slope instead of
+    the harsh buzz. Noise lives at her folds as well as at a pinch, so she can
+    breathe and make unvoiced sounds.
+20. Her tract reaches the **whole adult vowel table × 1.3** (`muscles.py`:
+    F1 350–1000, F2 1100–3000, F3 riding with `front`) — a child's range,
+    including the back vowels. Her larynx is `PITCH_HZ` 250–600, a newborn's.
+21. **No prepared table, no naming a sound, no aiming, and no ruler.** A sound
     is named by the shape of the piece itself.
 
 ### And what is deliberately absent
@@ -314,7 +323,8 @@ her.py                    one command
 ```
 
 `mind/` is six files: `life`, `hormones`, `discover`, `store`, `structure`,
-`sandbox`. `mind/life.py` holds the twenty points above and nothing else.
+`sandbox`. `mind/life.py` holds the architecture above (HOW SHE WORKS) and
+nothing else.
 
 **Instruments, testing only** (`measure/`; she never imports them):
 `alphabet` --- her possibilities, swept by her own law with one carried mouth;
@@ -343,18 +353,28 @@ Honest, so nobody rediscovers it as a surprise:
   she can neither see nor reach it. She starves on long runs. **This is the one
   thing standing between her and a real test.** His word needed; it is her
   world, not her mind.
-- **Her sound in memory is one level per piece.** Measured 2026-09-12 with her
-  own judge: her ear keeps 12 of his 19 words, her memory keeps 1. Her mouth
-  gives back his rhythm, loudness and pauses in her voice, and no words. Her
-  ear's 24 levels driving her own voice gave 20 of 41 words. His decision.
-- **Her look is 5 a second, not 90.** The cut (`parts.find`) is gone; the
-  render of her real room --- her body in it, two windows, every thing, the
-  reflection --- is ~65 ms, dozens of unfused GPU passes. One fused kernel
-  would draw it in about a millisecond. `body/light.py`, his word.
-- **A `--keep` wake crashes**: `mind/life.py:_remember` calls `.get` on the
-  tuple `store.hands()` returns. One line; his word.
-- Sound in is five lines where he says four: `lvl` duplicates the two ears
-  (sensors 50, 51) and `balance` is a sign (`1 if loudest else -1`), not a
-  level between them. His word.
+- **Her sound in memory is one level per piece — the one open voice decision.**
+  Measured 2026-09-12 with her own judge (vosk): her ear keeps 12 of his 19
+  words, her memory keeps 1. So her own mouth gives back his rhythm, loudness
+  and pauses in her voice, and none of his words. Driving her own folds and
+  tract from her ear's 24 levels a piece instead of one gave 20 of 41 words
+  back in a child's voice (`measure.hervoice`). Whether a sound reaches her
+  memory as several levels rather than one is his to decide; it is the only
+  thing between her and copying his words.
+- **Her look render.** She now attempts a look every tick (`LOOKS_PER_SECOND =
+  1/TICK_SECONDS`); the eye runs on its own thread and `_eyeBusy` holds it off
+  until the last look is done, so it never blocks her clock. But the full-room
+  render (her body, two windows, every thing, the reflection) is ~12–65 ms of
+  unfused GPU passes, so under load `behind` bounces ~0.4–2.0 s and recovers.
+  Two ways to hold `behind` at 0: fuse the render into one kernel
+  (`body/light.py`), or set `LOOKS_PER_SECOND` to ~30. His word.
+- **The bottle.** `sandbox/app.py` places it from a gaze vector with its
+  vertical component discarded, direction fixed across all 30 retries — so it
+  often spawns inside the mattress at 6 cm, unseeable and unreachable, and she
+  starves on long runs. Her world, not her mind; his word.
 - Numbers still his to set: `RESTS`' 1.5, `PRESS`'s build/drain balance,
   `FLOOR_HALF_LIFE`, and whether asphyxia should outrank hunger.
+
+Fixed 2026-09-12, no longer open: the `--keep` wake crash (`store.hands()`
+tuple); balance dropped so sound-in is four lines; her folds and tract; her
+grain 0.01; the register applied once at the door; the voice re-lock.

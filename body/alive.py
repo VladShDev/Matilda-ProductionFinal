@@ -1794,7 +1794,17 @@ class Her:
             # mind stopped reporting entirely, and `behind` read 0.0 only
             # because nothing was left to be behind.  Her eye asks on her look
             # rate and only when the last look is done.
-            if not self._eyeBusy and len(self.ticks) % self.looksEvery == 0:
+            # ...AND HER EYE YIELDS WHEN SHE IS BEHIND HER CLOCK.  His word,
+            # 2026-09-12: correct her looks when she falls back of the clock, so
+            # her tick stays 90 and the eye --- a slower sense --- simply blinks
+            # less often under load instead of dragging her heartbeat.  A look
+            # renders ~12-65 ms; trying one every 11 ms tick pushed `behind` to
+            # 2 s.  Now she starts a look only when she is within a few ticks of
+            # her clock; when she lags she skips the blink and catches up, then
+            # resumes.  Self-regulating: her look rate becomes whatever holds
+            # her at pace, and her clock is never spent on her eye.
+            if (not self._eyeBusy and self.behind < 3.0 * TICK_SECONDS
+                    and len(self.ticks) % self.looksEvery == 0):
                 eye, up, right, fwd = her._glimpse()
                 self._lookJob = (len(self.ticks),
                                  np.array(eye, np.float32, copy=True),
