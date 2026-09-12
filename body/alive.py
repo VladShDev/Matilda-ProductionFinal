@@ -44,8 +44,8 @@ from body.air import hear
 from body.alike import ALIKE_KINDS, FLOOR, SILENCE, _unit, level_of
 from body.ears import align
 from body.teacher import LIFT_HOLD, LIFT_TO, Teacher
-from body.hearing import (LOOK_SECONDS, REGISTER, SOUND_BANDS, SOUND_HOPS,  # noqa: E501
-                          SOUND_SLIDES, TICK_SECONDS,
+from body.hearing import (LISTENS, LOOK_SECONDS, REGISTER, SOUND_BANDS,  # noqa: E501
+                          SOUND_HOPS, SOUND_SLIDES, TICK_SECONDS,
                           bands_from_pcm, door, grabFor, wordFrames)
 from body.ticks import Ticks
 from time import perf_counter as _perf
