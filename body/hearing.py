@@ -57,7 +57,14 @@ TICK_SECONDS = 1.0 / float(_os.environ.get("MATILDA_FPS", "90") or "90")
 #: held 0.45 and 0.04 per LOOK, chosen when a look was every 1.5 s, and at 0.2 s
 #: they meant something else entirely --- a thing she stopped finding was
 #: forgotten in 1.54 s instead of 11.55 s.  Nothing raised.
-LOOKS_PER_SECOND = 5.0
+#: HER LOOK RATE.  His word, 2026-09-12: the squares are gone (no `parts.find`
+#: in her look), so a look is only the render (~12 ms on the 4060) and she can
+#: try one every tick.  `looksEvery` becomes 1; the eye runs on its own thread
+#: and `_eyeBusy` holds it off until the last look is done, so a render longer
+#: than a tick just lands "a little bit later" instead of blocking her clock ---
+#: her tick stays 90 a second (measured `behind` 0, feelMs 0.14).  Nothing reads
+#: the old word-gap that was tied to this (`self.gap`, vestigial).
+LOOKS_PER_SECOND = float(1.0 / TICK_SECONDS)
 LOOK_SECONDS = 1.0 / LOOKS_PER_SECOND
 #: ...AND ONE TICK IS ONE FRAME OF SOUND.  His: *"she has frame our tick
 #: |...---___...-~~| --- THAT PART OF SOUND IS THE ONLY ONE WE CAN DISCUSS AT
