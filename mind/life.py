@@ -34,9 +34,13 @@ WHAT MOVES HER
     hormones set her speed and her effort, never her decisions.
 
 RECREATING ONE
-    She sees the values on her inputs and looks for the experience whose start
-    is nearest her now.  Retrying it is ONE STEP: she posts the stored
-    difference and her flesh walks the way.  If a change came from outside and
+    She picks the experience with the BEST PROFIT --- the state she felt the
+    moment it switched.  His word, 2026-09-12: *"we just pick experience with
+    best profit, best state that we feel that moment when experience was
+    switched ... so we don't need any closeness, any song rules."*  Retrying it
+    is ONE STEP: she posts the stored change, from where she is now, and her
+    flesh walks the way.  Novelty is why the second time pays nothing, and
+    boredom is what then moves her on.  If a change came from outside and
     she has never made that output herself, she does not have that piece ---
     it is a level she has seen and cannot produce, until discovery gives her
     the output that makes it, and then it is a piece like any other.
@@ -72,7 +76,7 @@ HANDS_EVERY = int(round(300.0 / TICK_SECONDS))
 
 #: the three lines a thing seen has, and the three a sound has.  Tags, not
 #: names: her mind never branches on which of them a level came from.
-VIEW, VIEW_X, VIEW_Y = "view", "viewx", "viewy"
+VIEW = "view"
 HEARD = "heard"
 
 
@@ -88,14 +92,14 @@ def lines(life) -> dict:
     out = {("sensor", int(s.id)): float(s.lvl) for s in i.sensor}
     for s in i.spindle:
         out[("spindle", int(s.id))] = float(s.lvl)
+    # A SOUND IS ITS LEVEL, HOW LOUD, AND WHICH SIDE.
     out[(HEARD, 0)] = float(getattr(i.sound, "similarity", 0.0) or 0.0)
     out[(HEARD, 1)] = float(i.sound.lvl)
     out[(HEARD, 2)] = float(getattr(i.sound, "balance", 0) or 0)
-    for v in i.view:
-        if float(v.similarity) > 0.0:
-            out[(VIEW, int(v.id))] = float(v.similarity)
-            out[(VIEW_X, int(v.id))] = float(getattr(v, "x", 0.0))
-            out[(VIEW_Y, int(v.id))] = float(getattr(v, "y", 0.0))
+    v = i.view[0] if i.view else None
+    out[(VIEW, 0)] = float(v.similarity) if v is not None else 0.0
+    out[(VIEW, 1)] = float(getattr(v, "x", 0.0)) if v is not None else 0.0
+    out[(VIEW, 2)] = float(getattr(v, "y", 0.0)) if v is not None else 0.0
     for m in life.output.motor:
         out[("motor", int(m.id))] = float(m.lvl)
     return out
@@ -138,14 +142,18 @@ class Life:
         self.seen: dict = {}            # line -> the buckets it has shown
         self.usual: dict = {}           # line -> its usual jump
 
-        # HER MEMORY.  An experience is two states: its start whole, and only
-        # the lines that differ at its end.  `parts` is the one it began from,
-        # so each holds the last inside itself.  Nothing is capped and nothing
-        # is dropped --- a state and a difference weigh almost nothing, and
-        # what is far off is far because it is far.
+        # HER MEMORY.  An experience is two states: its start whole, and at its
+        # end THE CHANGE on each line that moved --- 0.1 to 0.5 is kept as 0.4,
+        # and a line that did not move is not written at all.  `parts` is the
+        # one it began from, so each holds the last inside itself.  Nothing is
+        # capped and nothing is dropped --- a state and a difference weigh
+        # almost nothing, and what is far off is far because it is far.
         self.starts: dict = {}          # exp id -> its first state, whole
-        self.ends: dict = {}            # exp id -> the lines that differ at its end
+        self.ends: dict = {}            # exp id -> the change on each line that moved
         self.parts: dict = {}           # exp id -> the experience it began from
+        self.profit: dict = {}          # exp id -> the state she felt when it switched
+        self.picked: int | None = None  # the one she last put back, judged at her next choice
+        self.sank: float = 0.0          # ...and the lowest her state fell while she performed it
         self.lastClosed: int = 0
         self.memory = Memory()
 
@@ -158,7 +166,6 @@ class Life:
         self.lowest: float = float("inf")   # the run's lowest of it...
         self.highest: float = 0.0           # ...and its highest
         self.paid: float = 0.0          # the rise of it over the run
-        self.closePrev: float = 0.0     # how close she was to her nearest memory
         self.prev: dict | None = None
         self.was = None                 # her previous output, for the ladder
 
@@ -194,7 +201,8 @@ class Life:
             self.ends[int(k)] = {_unkey(a): float(b) for a, b in lv.items()}
         for k, v in (packed.get("parts") or {}).items():
             self.parts[int(k)] = int(v)
-        self.memory = self.store.remember() or Memory()
+        for k, v in (packed.get("profit") or {}).items():
+            self.profit[int(k)] = float(v)
         closed = self.store.exps() or []
         if closed:
             self.lastClosed = int(max(int(e.id) for e in closed))
@@ -209,6 +217,7 @@ class Life:
             "seen": {_key(k): sorted(v) for k, v in self.seen.items()},
             "usual": {_key(k): float(v) for k, v in self.usual.items()},
             "parts": {str(k): int(v) for k, v in self.parts.items()},
+            "profit": {str(k): float(v) for k, v in self.profit.items()},
             "starts": {str(k): {_key(a): float(b) for a, b in lv.items()}
                        for k, lv in self.starts.items()},
             "ends": {str(k): {_key(a): float(b) for a, b in lv.items()}
@@ -271,20 +280,12 @@ class Life:
         for k, v in now.items():
             burst, closing = self._line(k, v, burst, closing)
 
-        # AS THE WORLD BRINGS HER NEARER TO SOMETHING SHE HOLDS, and as it
-        # takes it away.  Reminding itself pays: the whole way from far to near
-        # is worth one resolution, so a reminding alone can never cut a run,
-        # and losing drags exactly as finding pays.  (Her hormone lines of this
-        # tick are not written yet, so the moment is read with the last tick's.)
-        remind = 0.0
-        if self.starts:
-            moment = dict(now)
-            moment.update(_hormones(self.prev or {}))
-            c = max((self._closeness(i, moment) for i in self.starts), default=0.0)
-            remind = (c - self.closePrev) * self.res
-            self.closePrev = c
-
-        self.hormones.live(t, burst + remind, 0.0)
+        self.hormones.live(t, burst, 0.0)
+        # WHAT THE ONE SHE PUT BACK IS BRINGING HER --- her state while she
+        # performs it, read every tick until her next choice.  A close is a
+        # novelty peak, so judging there would miss that she sank first.
+        if self.picked is not None:
+            self.sank = min(self.sank, float(t.life.input.state))
 
         # THE ONE VALUE: her state above the floor she has learned she can
         # feel.  Her dopamine still pays into it, with every other line,
@@ -360,8 +361,8 @@ class Life:
 
     # ------------------------------------------------------------- the close
     def _close(self, t, now: dict) -> None:
-        """TWO STATES.  Its start, whole; its end, only the lines that differ.
-        Nothing between them is kept.  And the next begins here."""
+        """TWO STATES.  Its start, whole; its end, the change on each line that
+        moved.  Nothing between them is kept.  And the next begins here."""
         done = Exp(id=self.openId)
         # the row she ENDED in --- what a thing LED TO, which is what this row
         # has been documented as since it was written
@@ -376,16 +377,25 @@ class Life:
 
         start = dict(self.opening)
         self.starts[int(done.id)] = start
+        # THE CHANGE, NOT THE VALUE.  His word, 2026-09-12: *"output ID one was
+        # 0.1, next step it became 0.5, so the step saves 0.4.  The rest stay
+        # zero, and we store nothing there."*  A line that did not move by her
+        # grain is not written at all.
         self.ends[int(done.id)] = {
-            k: v for k, v in now.items()
+            k: v - start.get(k, 0.0) for k, v in now.items()
             if k not in start or abs(v - start[k]) > self.res}
+        # HER PROFIT: the state she felt the moment it switched --- what she
+        # picks by, and nothing else.
+        self.profit[int(done.id)] = float(t.life.input.state)
         self.parts[int(done.id)] = int(self.lastClosed)
         self.lastClosed = int(done.id)
 
         self.closes += 1
         self.closedHow["state"] = self.closedHow.get("state", 0) + 1
-        self.memory.short.append(int(done.id))
-        self.store.memory(self.memory)
+        # No short and long memory.  His word, 2026-09-12: *"our new structure
+        # even doesn't need it ... the tree keeps her from unnecessary turns."*
+        # The `memory` row was a list of every closed id, rewritten whole at
+        # every close and read by nothing that decides.
 
         # the id grows before she decides, and the next run opens in the row
         # this one closed in --- so it holds this one inside itself
@@ -399,19 +409,47 @@ class Life:
 
     # ------------------------------------------------------------ the choice
     def _choose(self, t, now: dict, s: float) -> None:
-        """The experience she is nearest, put back in one step --- or a trial."""
+        """The experience with the best profit, put back in one step --- or a trial."""
+        # WHAT SHE PUT BACK LAST TIME IS JUDGED BY WHAT IT BROUGHT.  His word,
+        # 2026-09-12: *"the state of this experience would be fallen each time
+        # she didn't get expected profit from that experience.  That's it."*
+        # So its profit becomes what she actually feels now, when that is less
+        # --- a wrong experience sinks, and she does not inspect it again.  No
+        # short and long memory, no 26 and 26: the tree keeps her from the
+        # wrong turns by itself.
+        if self.picked is not None:
+            got = min(float(s), float(self.sank))
+            if got < self.profit.get(int(self.picked), 0.0):
+                self.profit[int(self.picked)] = got
+        self.picked = None
         cands = [i for i in self.starts if i != self.openId]
         # BOREDOM IS HOW MUCH SHE EXPLORES: bored, she tries things; not, she
-        # repeats what she is nearest.  A level, seeded by her age, no switch.
+        # repeats what paid best.  A level, seeded by her age, no switch.
         dull = float(self.hormones.level.get(DULL, 0.0))
         if cands and random.Random(int(self.age)).random() >= dull:
-            best = max(cands, key=lambda i: (self._closeness(i, now), i))
+            # BY PROFIT, AND NOTHING ELSE.  His word, 2026-09-12: *"we just pick
+            # experience with best profit ... so we don't need any closeness,
+            # any song rules."*  The first time a line moves she is paid once;
+            # retrying it pays nothing (novelty), and boredom moves her on ---
+            # so she tries everything herself and builds bigger experiences
+            # out of the smallest, keeping the ones that paid.
+            best = max(cands, key=lambda i: (self.profit.get(i, 0.0), i))
             # RETRYING IS ONE STEP: her flesh caps force and not destination,
-            # so ordering the lines she ended in IS doing it again --- the
-            # physics walks the way there.
+            # so ordering the CHANGE she made, from where she is now, IS doing
+            # it again --- the physics walks the way there.
             end = self.ends.get(int(best)) or {}
-            plan = {"motor": [{"id": int(k[1]), "lvl": float(v)}
+            plan = {"motor": [{"id": int(k[1]),
+                               "lvl": max(0.0, min(1.0, float(now.get(k, 0.0)) + float(v)))}
                               for k, v in end.items() if k[0] == "motor"]}
+            # CHOSEN IS CHOSEN, whether or not there was anything of hers to
+            # post.  An experience where the world moved and she did not ---
+            # her mother's voice, the room --- can sit at the top with nothing
+            # to replay (measured 2026-09-12: profit 0.992, 21 lines, no motor;
+            # picked at 703 of 728 closes, every one a fall-through).  She
+            # chose it and it brought her nothing, so it sinks by the same rule
+            # as any other, and the next one gets its turn.
+            self.picked = int(best)
+            self.sank = float(s)
             if plan["motor"]:
                 self.replays += 1
                 self.guided += 1
@@ -437,20 +475,6 @@ class Life:
         except OSError:
             pass
         self.laddered += 1
-
-    def _closeness(self, i: int, now: dict) -> float:
-        """HOW FAR THIS ROW IS FROM THAT ONE --- 1.0 the same row, 0.0 nothing
-        alike.  Every line of either is asked, the difference is its size, and
-        a line on one row and not the other is a whole line apart."""
-        then = self.starts.get(i) or {}
-        if not then:
-            return 0.0
-        keys = set(then) | set(now)
-        far = 0.0
-        for k in keys:
-            a, b = then.get(k), now.get(k)
-            far += abs(float(a) - float(b)) if (a is not None and b is not None) else 1.0
-        return max(0.0, 1.0 - far / len(keys))
 
     # --------------------------------------------------------------- living
     def run(self, seconds: float | None = None) -> None:

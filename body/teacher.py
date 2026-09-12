@@ -93,7 +93,7 @@ NAME_KEEPS = 2          # her vocabulary: the two forms the baby says most
 #: is looking at, once per NAME_REST, as a mother does across a table.
 THING_WORDS = {"bottle": "milk", "teacher": "mama", "ball": "ball",
                "rattle": "rattle", "bear": "bear"}
-NAME_REST = 270         # ~3 s between namings of what she looks at
+NAME_REST = int(round(3.0 / _T))   # 3 s between namings of what she looks at
 #: THE WORD RULES, his answers of 2026-08-28 ("agree"):
 WORD_GAP = _ticks(1.0 / 6)   # the breath inside a word: ma [gap] ma
 CRY_LVL = 0.05          # over half her loudest voice, sustained, is crying
@@ -130,7 +130,8 @@ FEED_REST = _ticks(110.0)
 #: settles that form's usual by a quarter; rest drifts it back (~min).
 #: Variety is what earns her voice --- the loop starves, the alphabet
 #: spreads.
-PARROT_SETTLE = 0.35
+#: A half-life in his seconds, like `PARROT_DRIFT` below.
+PARROT_SETTLE = 1.0 - 0.5 ** (_T / 0.0179)
 #: per tick toward fresh again --- written as the 55 s HALF-LIFE it is meant
 #: to be, so it does not shorten with her clock (at 0.0004 a tick it had
 #: fallen to 19 s: her mother forgot she was bored three times too fast).
@@ -165,7 +166,6 @@ MIN_WORD_LOUD = 0.03    # clearly phonated (her loudest voice is ~0.09)
 #: and pace rise together --- motherese by arithmetic).  And naming is
 #: father-driven: a word he says while the baby is LOOKING at a thing
 #: becomes that thing's name, for ever.
-HIS_BAR = 0.02          # his voice, clearly present at the mic
 HIS_GAP = _ticks(0.3)   # of quiet ends one of his words
 #: (her mother keeps every word of his --- his, 2026-09-06; a rotating nine went)
                         # widened 6 -> 9 on his word (2026-08-30, "I
@@ -365,7 +365,7 @@ class Teacher:
         if not self.on or self.convert is None:
             return
         loud = float(np.abs(pcm).max()) if pcm is not None and len(pcm) else 0.0
-        if loud > HIS_BAR:
+        if loud > 0.0:
             self._his.append(np.asarray(pcm, np.float32).copy())
             self._hisQuiet = 0
             return

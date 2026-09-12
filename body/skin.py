@@ -63,7 +63,7 @@ def feel(ragdoll, room, sent: dict[str, float] | None = None) -> dict[str, float
         idx = [JIDX[j] for j in joints]
         felt = float(np.max(pressed[idx])) / FIRM
 
-        for thing in room.things.values():
+        for thing in list(room.things.values()):   # her room can change under her (see light._scene)
             felt = max(felt, ragdoll.contact(thing.at, joints, REACH + thing.size))
 
         if sent:

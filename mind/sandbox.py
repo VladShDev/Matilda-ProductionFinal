@@ -179,8 +179,3 @@ def act(decision, at: str = "http://127.0.0.1:8090", tick: int = -1) -> dict:
                             "lvl": float(lvl)}).decode("utf-8"))
 
 
-def sayRaw(samples: bytes, at: str = "http://127.0.0.1:8090") -> None:
-    """HIS WORD INTO HER ROOM, as raw float32 samples at her rate --- what the
-    page's microphone posts to `/say`.  Only the bootstrap's guide uses this
-    (`life.Life.guide`): a caregiver says the word as she moves the mouth."""
-    _ask(at, "POST", "/say", raw=samples)

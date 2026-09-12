@@ -53,7 +53,6 @@ from body.room import BED                                          # noqa: E402
 from body.muscles import VOICE_PARTS                               # noqa: E402
 from body.hearing import SOUND_BANDS                               # noqa: E402
 from body.hearing import TICK_SECONDS                              # noqa: E402
-from body import bind
 from body import light                                             # noqa: E402  (her eye: which device it runs on, for /meta)
 from sandbox.heard import Heard                                  # noqa: E402
 from body.ragdoll import JIDX                                      # noqa: E402
@@ -562,7 +561,6 @@ class Watched(Her):
             #: line of sight instead of where a constant says her face was
             "gaze": (lambda h, g: {"head": [round(float(v), 4) for v in h], "dir": [round(float(v), 4) for v in g]})(
                 self.her._glimpse()[0], self.her._glimpse()[3]),
-            "turns": int(getattr(self, "turns", 0)),      # her eyes turned toward a sound that rose
             "held": {"pins": int(self.her.pinned.sum()),
                      "carried": int(self.her.carrying.sum()),
                      "touch": self.touch is not None,
@@ -703,13 +701,12 @@ class Watched(Her):
         """
         with self.lock:
             pic = None if self.picture is None else np.asarray(self.picture)
-            seen = np.asarray(self.seen) if len(self.seen) else None
             ears = np.asarray(self.ears)
             tick = len(self.ticks)
             named, namedAt = list(self.named), self.namedAt
-        return self._eyeOf(pic, seen, ears, tick, named, namedAt)
+        return self._eyeOf(pic, ears, tick, named, namedAt)
 
-    def _eyeOf(self, pic, seen, ears, tick, named, namedAt) -> dict:
+    def _eyeOf(self, pic, ears, tick, named, namedAt) -> dict:
         """WHAT SHE MADE OF IT --- in the shape the page reads.
 
         `shot` is base64 RGB at `w x h`, `things` are her bound things with a
@@ -735,11 +732,7 @@ class Watched(Her):
         # 2026-08-25: it printed *biggest 0.2% of field* while her real biggest
         # was 76.3%, and that is the number he has been reading all evening.
         # Sorted HERE, because the page is a mirror of finished numbers.
-        rows = sorted((seen if seen is not None else []),
-                      key=lambda r: -float(r[bind.AREA]))
-        things = [[float(r[bind.X]), float(r[bind.Y]), float(r[bind.AREA]),
-                   float(r[3]), float(r[4]), int(r[bind.LOOKS])]
-                  for r in rows[:64]]
+        things = []
         return {"tick": len(self.ticks),
                 # WHAT IS REALLY THERE, over the picture it was measured on.
                 # `namedAt` is that picture's tick: her retina is remade every
@@ -750,7 +743,11 @@ class Watched(Her):
                 "w": int(px.shape[1]), "h": int(px.shape[0]),
                 "shot": base64.b64encode(px.reshape(-1).tobytes()).decode(),
                 "things": things,
-                "found": 0 if seen is None else len(seen),
+                "found": 0,
+                # HER VIEW LINE, which is all her sight is now:
+                # what the picture is, as a level, and where it is.
+                "view": [round(float(v), 4)
+                         for v in getattr(HER, "onePicture", (0.0, 0.0, 0.0))],
                 "gain": round(float(pic.max()), 3),
                 "ears": [[round(float(v), 4) for v in ears[0].max(axis=1)],
                          [round(float(v), 4) for v in ears[1].max(axis=1)]]}
@@ -1070,7 +1067,7 @@ class Page(BaseHTTPRequestHandler):
                 self._send(got)
                 # ...AND THE PEAK STARTS AGAIN.  It holds the loudest her ears
                 # reached since this was last asked, so a panel polling every
-                # 500 ms misses none of a 33 ms tick.  Reset on the READ and
+                # 500 ms misses none of her 11.1 ms tick.  Reset on the READ and
                 # never on the tick: resetting per tick is what made it show one
                 # tick in fifteen.
                 seen = getattr(HER, "earsSeen", None)

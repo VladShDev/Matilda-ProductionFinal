@@ -6,7 +6,6 @@
 2026-08-25 the three stages were timed in a standalone probe --- a fresh
 `Seen`, a static room, a few dozen pieces --- and came out
 
-    light.see 16.3   parts.find 25.0   bind.Seen.look 22.6   = 63.8 ms
 
 which is where "spread it one stage a tick and no tick is ever over budget"
 came from.  Timed inside her real life, holding the 300-600 pieces she
@@ -15,7 +14,6 @@ was twice what had been reported.
 
 **A PROBE THAT STARTS A BODY AND IMMEDIATELY TIMES IT IS MEASURING A BODY WITH
 NO MEMORY IN IT.**  Anything that costs more the more she holds --- `parts
-.find`, `bind`, anything that matches against what she already has --- has to
 be timed after she has been alive for a while.
 
 AND IT HAPPENED AGAIN, 2026-09-01, to me: I timed these three with a fresh
@@ -42,7 +40,7 @@ import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from body import bind, light, parts                        # noqa: E402
+from body import light, parts                              # noqa: E402
 from body.hearing import LOOK_SECONDS, TICK_SECONDS         # noqa: E402
 from body.room import Room                                  # noqa: E402
 from body.window import Window                              # noqa: E402
@@ -84,20 +82,6 @@ def main() -> int:
     ms2 = timeit(lambda: parts.find(pic))
     rows = np.asarray(parts.find(pic))
 
-    cold = bind.Seen()
-    msCold = timeit(lambda: cold.look(rows, 100, (0.0, 0.0, 0.0), pic,
-                                      None, None), n=2)
-
-    # ...AND THE SAME EYE AFTER IT HAS BEEN LOOKING FOR A WHILE
-    warmEye = bind.Seen()
-    was = None
-    for k in range(warm):
-        warmEye.look(rows, k, (0.0, 0.0, 0.0), pic, was, None)
-        was = pic
-    held = len(getattr(warmEye, "kept", ()) or getattr(warmEye, "things", ()) or ())
-    msWarm = timeit(lambda: warmEye.look(rows, 1000, (0.0, 0.0, 0.0), pic,
-                                         was, None), n=2)
-
     budget = LOOK_SECONDS * 1000.0
     tick = TICK_SECONDS * 1000.0
     print("ONE LOOK --- %dx%d, %d cones = %d rays"
@@ -106,17 +90,14 @@ def main() -> int:
     print("  light.see   ray-trace her room     %6.1f ms" % ms1)
     print("  parts.find  find the pieces        %6.1f ms   (%d pieces)"
           % (ms2, len(rows)))
-    print("  bind.look   FRESH eye, no memory   %6.1f ms" % msCold)
-    print("  bind.look   after %3d looks        %6.1f ms   %s"
-          % (warm, msWarm, "(what living costs)" if msWarm > msCold else ""))
     print("  ---------------------------------------------")
-    whole = ms1 + ms2 + msWarm
-    print("  a whole look, warm                 %6.1f ms" % whole)
+    whole = ms1 + ms2
+    print("  a whole look                       %6.1f ms" % whole)
     print("  her budget                         %6.1f ms   (a look every "
           "%.0f ms, one stage a tick of %.0f ms)" % (budget, budget, tick))
     print("  she uses %.0f%% of it" % (100.0 * whole / budget))
-    slow = [n for n, ms in (("light.see", ms1), ("parts.find", ms2),
-                            ("bind.look", msWarm)) if ms > tick]
+    slow = [n for n, ms in (("light.see", ms1), ("parts.find", ms2))
+            if ms > tick]
     if slow:
         print("\n  OVER ONE TICK: %s --- a stage that does not fit in %.0f ms "
               "makes her clock sag, because a look is spread one stage a tick."

@@ -100,6 +100,55 @@ what must match it, and it does.
 3. **Her hormones are lines like any other. Her own orders are lines like any
    other.**
 
+### A line stays where she put it
+
+**NOTHING MOVES A LINE BUT HER.** Her output carries forward whole, and no part
+of her body puts it back toward rest. That is what makes the chain possible:
+the next experience opens where the last one closed, so she sets one line, then
+another, and both are still there --- a whole pose built out of one-line trials.
+
+Her motor lines used to drop toward rest every tick, so a line was gone in
+0.22 s. Nothing she did survived to her next experience, her trials come seconds
+apart, and her mouth was therefore always one shape: measured 2026-09-12, of the
+seven articulators she used 55 different values of `loud` and exactly one of
+everything else. That is "oh, oh, oh" and it is the only sound one shape can
+make. **Output(0) cannot become Output(+1) if her body moves the lines between
+them.**
+
+### One step, and it is 11 ms
+
+**ELEVEN MILLISECONDS IS THE STEP FOR EVERYTHING, NAMING INCLUDED.** One piece
+of sound is one tick of real time; one level, one row in her memory, per piece.
+The STEP from one piece to the next is her tick and nothing else.
+
+**Her ear LISTENS further back than it steps** (`hearing.LISTENS`, four ticks).
+A frequency cannot be told in less time than about one of its cycles: in 11 ms
+of air nothing closer than ~90 Hz is separable, and fifteen of her 24 bands are
+narrower than that. Measured 2026-09-12 with her own judge (vosk): named from
+11 ms of air, 6 of his 19 words survived her ear; named from the last 44 ms,
+12. The piece is 11 ms, the step is 11 ms; what her ear listens to for each
+piece is the last four --- his air and her own alike. A cochlea does the same.
+
+**The door only cuts.** His order, 2026-09-12: *"first converted to her
+register, then cut to eleven millisecond pieces --- just once."* The outside is
+brought into her register where it arrives (`window.say`, by `toHer`:
+frequencies by REGISTER, time untouched) and `door` after it only cuts. The
+measured register for the mouth she has is **1.0** --- every step above it
+made her worse on every count --- so today `toHer` is the identity and the
+structure stands ready for any register he names.
+
+### One gate
+
+**EVERY SOUND IS NAMED BY THE SAME EAR, HER OWN INCLUDED.** Her ears are the
+spindle for her mouth, and she has one line for what a sound is. His air and
+hers both become her bands by `bands_from_pcm`, over the same `LISTENS` of air,
+and both are named by the same `align`. His enters through `door` (the door
+only cuts; the register, if any, was applied once at `window.say`); her own air
+does not pass the door --- it is already hers --- and is mixed into her ear
+bands with everyone else's (`alive.py`, *"one input, and everything is in
+it"*). Two voices at once are one level, because that is what the room sounded
+like. There is no echo channel and no ruler.
+
 ### An experience
 
 4. **An experience is two states**: its start whole, and its end kept as only
@@ -119,6 +168,27 @@ what must match it, and it does.
    many turns away. No cap, no drop; her whole memory is written to the record
    and read back at a wake.
 
+### What she can tell apart
+
+**HER GRAIN IS HER SHARPEST SENSE, NEVER HER BLUNTEST PART.** `resolution` is
+what she can **sense** --- `1 / ALIKE_KINDS`, her ear's own step, because her ear
+names 512 sounds and puts the name on her row as a level in 0..1. What she can
+**push** is separate and coarser: `muscleStep`, her flesh's smallest move.
+
+One number served both until 2026-09-12, and it was the muscle one. Her mind
+used it for what counts as a change, what an experience keeps, and the grain her
+memory is written at (`store._q`), so **512 sounds collapsed into 21 buckets**:
+her ear gave 98 distinct levels of his voice live and her record kept 13. Two
+sounds three names apart differ by 3/512 = 0.006, far under 0.05, so she could
+not tell them apart anywhere --- not in her memory, not in an experience, not in
+closeness. She could not have learned to speak; there was nothing to learn from.
+
+Fixed, the same minute of his voice: **13 -> 108 distinct sounds**, and 87% of her
+memory comes back wearing its own name (`measure.saidback`).
+
+**Any line she senses finer than her muscles move needs her sense's grain, not
+her flesh's.** If a new sense arrives, this is the question to ask about it first.
+
 ### What moves her
 
 10. **ONE VALUE: her state above the floor she has learned she can feel.** That
@@ -126,10 +196,14 @@ what must match it, and it does.
     can feel. **Value is not computed and not stored**: her hormone lines are
     already in the row, so what an experience did to her is already in the
     record. There is no rating, no weight, no worth.
-11. **The floor follows her state** (`Hormones.floor()`), so the same comfort
-    stops paying and she must reach further. His addiction law. It is also why
-    the measure is floor-relative: the floor comes down with her, so a rise is
-    a rise wherever she is.
+11. **The floor only rises** (`Hormones.floor()` and dopamine's own set-point,
+    `_usualEase`; his word 2026-09-12: *"once she felt better, her state is
+    never on the floor again --- as much profit before, as much she wants"*).
+    The same comfort stops paying and she must reach further. A rise still
+    counts at the worst of her life because the cut measures the rise over the
+    run's OWN lowest, not over the floor. Where the law has hands is
+    dopamine's set-point: sitting below it drags her state, and a lower state
+    makes her trials bigger --- the craving.
 12. **Boredom works like hunger**: nothing changing → her state falls → her
     deficit rises → she works harder.
 13. **Effort is how far a level moves and how often.** Her hormones set her
@@ -139,9 +213,19 @@ what must match it, and it does.
 
 ### Recreating one
 
-14. She looks for the experience whose **start is nearest her now**.
-15. **Retrying it is ONE STEP**: she posts the stored difference and her flesh
-    walks the way. Her muscles cap force, not destination.
+14. **She picks the experience with the best profit** --- the state she felt
+    the moment it switched. No closeness, no song rule (his word, 2026-09-12).
+    An experience's end is stored as the CHANGE on each line that moved (0.1 ->
+    0.5 is kept as 0.4). Its profit falls to what she actually felt when
+    replaying it brought less --- including when there was nothing of hers in
+    it to replay --- so a wrong experience sinks and the next gets its turn.
+    No short and long memory, no 26 and 26: the tree keeps her from the wrong
+    turns by itself.
+15. **Retrying it is ONE STEP**: she posts the stored change, from where she is
+    now, and her flesh walks the way. Her muscles cap force, not destination.
+    Retrying pays nothing (novelty), so the run stays open and she goes on
+    discovering --- the same line one step further, or the next --- until
+    something new closes a bigger experience that holds the retry inside it.
 16. **If a change came from outside and she has never made that output, she
     does not have that piece.** It is a level she has seen and cannot produce,
     until discovery gives her the output that makes it.
@@ -204,10 +288,11 @@ py.cmd -c "import sys; sys.path.insert(0,'mind'); import life, hormones, discove
 ```
 
 Her voice is locked sample-for-sample against
-`measured/matilda_through_her_2026-09-11.wav`, re-locked on his word that day
-after he heard it against his 2026-09-04 rendering, which is kept beside it.
-**Any change to her mouth fails that lock by design** — it needs his ear and
-his word, not a re-lock.
+`measured/matilda_through_her_2026-09-12.wav` (the flow folds and the open
+tract, on his word 2026-09-12); the 09-04 and 09-11 renderings are kept beside
+it. **Any change to her mouth fails that lock by design** — it needs his ear
+and his word; only then is the new rendering made the lock, and the other two
+floors (rattle, length) must still hold.
 
 ---
 
@@ -242,9 +327,18 @@ Honest, so nobody rediscovers it as a surprise:
   she can neither see nor reach it. She starves on long runs. **This is the one
   thing standing between her and a real test.** His word needed; it is her
   world, not her mind.
-- **Her view is still many blobs per tick, not one picture.** His design is one
-  picture, one similarity, x and y. `body/parts.py` and `body/bind.py` do
-  segmentation his architecture does not need. Discussed 2026-09-11, not
-  decided.
+- **Her sound in memory is one level per piece.** Measured 2026-09-12 with her
+  own judge: her ear keeps 12 of his 19 words, her memory keeps 1. Her mouth
+  gives back his rhythm, loudness and pauses in her voice, and no words. Her
+  ear's 24 levels driving her own voice gave 20 of 41 words. His decision.
+- **Her look is 5 a second, not 90.** The cut (`parts.find`) is gone; the
+  render of her real room --- her body in it, two windows, every thing, the
+  reflection --- is ~65 ms, dozens of unfused GPU passes. One fused kernel
+  would draw it in about a millisecond. `body/light.py`, his word.
+- **A `--keep` wake crashes**: `mind/life.py:_remember` calls `.get` on the
+  tuple `store.hands()` returns. One line; his word.
+- Sound in is five lines where he says four: `lvl` duplicates the two ears
+  (sensors 50, 51) and `balance` is a sign (`1 if loudest else -1`), not a
+  level between them. His word.
 - Numbers still his to set: `RESTS`' 1.5, `PRESS`'s build/drain balance,
   `FLOOR_HALF_LIFE`, and whether asphyxia should outrank hunger.

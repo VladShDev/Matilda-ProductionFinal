@@ -70,7 +70,9 @@ def _home(a):
     return _gpu.asnumpy(a) if _gpu is not None and _mod(a) is _gpu         else np.asarray(a, np.float32)
 
 #: HER RETINA.  Settled at 512 --- measured 2026-08-25 on her own 4060 at
-#: **11.87 ms a frame**, which fits inside a single 33 ms tick.  See
+#: **11.87 ms a frame** --- which is LONGER than her 11.1 ms tick, and is why
+#: a look is spread one stage to a tick and lands 5 times a second rather than
+#: 90 (`alive.looksEvery`).  See
 #: `body/EYE.md`.  Not a contract any more: it is a fact about her eye and it
 #: lives with her eye.
 RETINA_H = 512
@@ -81,6 +83,7 @@ CONES = 3
 EYE_SLIDES = 1
 
 from . import wordmark
+from .hearing import TICK_SECONDS
 from .room import BED, COT, MIRROR, PEN, ROOM, SIDES
 
 #: which of `_SIDES` wear the mark, in that tuple's own order
@@ -664,7 +667,17 @@ def _scene(room, window, o, d, body, best_t=None, best_c=None, near=None):
                           np.array([BED["x"], BED["top"] * 0.5, BED["z"]], np.float32),
                           np.array(COLOURS["bed"], np.float32), best_t, best_c,
                           near)
-    for thing in room.things.values():
+    # A SNAPSHOT, NOT THE LIVE DICT.  Her eye runs in its own thread; her room
+    # is changed from the HTTP thread (the teacher toggled on or off, a bottle
+    # put or taken, his hand). Walking the live dict while another thread adds
+    # or removes a key raises `RuntimeError: dictionary changed size during
+    # iteration` INSIDE HER EYE THREAD, which kills it for the rest of her life:
+    # the page freezes on the last frame, she is blind, and nothing says so.
+    # Measured 2026-09-11 22:46 --- her eye died mid-session the moment her room
+    # was touched, and every reading taken after that was of a frozen frame.
+    # `list()` copies the handful of references her room holds; it changes what
+    # she sees by nothing at all.
+    for thing in list(room.things.values()):
         best_t, best_c = _sphere(o, d, thing.at, thing.size,
                                  _lift(np.array(COLOURS.get(thing.what,
                                                             COLOURS["thing"]),
@@ -814,10 +827,12 @@ def one_look(room, window, eye, up, right, fwd, body=None) -> np.ndarray:
 #: ganglion cells are.  A newborn's orientation to motion and novelty is not a
 #: preference she learns; it is what her retina hands her.
 #:
-#: 0.35/tick: a new scene fades to ~7% in six ticks (nine seconds), which is
-#: slow enough that a slow look around keeps the world visible and fast enough
-#: that a crib she has lain in for a minute stops writing itself to her tape.
-SETTLES = 0.35
+#: A new scene fades to ~7% in six ticks --- slow enough that a slow look
+#: around keeps the world visible, fast enough that a crib she has lain in for
+#: a minute stops writing itself to her tape.
+#:
+#: A half-life in his seconds, so the fade is the same at any clock.
+SETTLES = 1.0 - 0.5 ** (TICK_SECONDS / 0.0179)
 
 #: ...and what an adapted cell can feel at all --- HER EAR'S OWN NUMBER.
 #:

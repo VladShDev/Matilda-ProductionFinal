@@ -42,7 +42,6 @@ CHECKS = [
     # `wiring` always returns 0 --- it LISTS, it does not judge --- so its
     # pattern is the whole of its check: it must have printed a census.
     ("wiring", ["measure.wiring"], r"never called,", False),
-    ("bind", ["measure.screen"], r"HELD --- the screen does not win", True),
     # HER VOICE IS A MONOLITH --- his word, 2026-08-31: *"you should mark
     # everywhere that our voice is like monolith"*, after it had been broken
     # and rebuilt four times in one night.  It needs no body and no GPU: it
@@ -133,13 +132,6 @@ RUNS = (
      "v=Voice(SOUND_BANDS, SOUND_SLIDES);"
      "v.say(np.full((v.parts, 9), 0.5, np.float32));"
      "assert len(v.pcm) > 0"),
-    ("her mouth can PLAY a piece",
-     "import os;"
-     "from body.muscles import Voice;"
-     "from body.hearing import SOUND_BANDS, SOUND_SLIDES;"
-     "v=Voice(SOUND_BANDS, SOUND_SLIDES, bank=os.path.join('lives','mouth.npz'));"
-     "assert v.rows and v.says;"
-     "v.play(sorted(v.says)[0], 0.9)"),
     ("her alphabet can be swept",
      "import numpy as np;"
      "from body import sounds;"

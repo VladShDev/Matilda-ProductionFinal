@@ -53,8 +53,6 @@ ALIKE_STEPS = 8
 #: her mouth's alphabet 80 -> 138 names, and the vowel of a sound is told
 #: across pitch (nearest pose by shape: open/front/nasal errors 0.03-0.10
 #: against 0.3 by chance; scratchpad/earname.py, earnn.py).  One law for both
-#: ears, the bank and her mother: everything named before this is another
-#: alphabet, and the bank was re-cut.
 SOUND_FLOOR_BAND = 6
 #: ...so the whole space is this many sounds, plus silence at 0.  Measured
 #: 2026-08-23: about 250 of them are reachable by her mouth, and it saturates
@@ -107,6 +105,28 @@ def _unit(picture: np.ndarray) -> np.ndarray:
     got = np.asarray(one_ear(picture), np.float64)
     size = np.linalg.norm(got, axis=0)
     return np.divide(got, size, out=np.zeros_like(got), where=size > 1e-12)
+
+
+def level_of(shapes: np.ndarray) -> np.ndarray:
+    """`(n, bands)` -> ONE LEVEL each, 0..1.
+
+    HIS RULE: *"similarity ID is level in sound.  That's it.  Nothing more."*
+    Where the energy of the piece sits, read straight off the band envelope,
+    continuous, no steps.  0.0 is silence and nothing else returns it.
+    """
+    got = np.atleast_2d(np.asarray(shapes, np.float64))
+    if got.shape[1] > SOUND_FLOOR_BAND + 1:
+        got = got[:, SOUND_FLOOR_BAND:]
+    total = got.sum(axis=1)
+    bands = got.shape[1]
+    out = np.zeros(got.shape[0], np.float64)
+    live = (total > 1e-9) & (bands >= 2)
+    if not live.any():
+        return out
+    w = got[live] / total[live][:, None]
+    at = np.arange(bands, dtype=np.float64)
+    out[live] = np.clip((w * at).sum(axis=1) / float(bands - 1), 1.0 / 512.0, 1.0)
+    return out
 
 
 def _index_of(shapes: np.ndarray) -> np.ndarray:

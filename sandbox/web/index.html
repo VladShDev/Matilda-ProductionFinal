@@ -3701,7 +3701,27 @@ function micVoice(){
   for(var i=0;i<out.length;i++) power+=out[i]*out[i];
   var rms=Math.sqrt(power/out.length);
   quietest = rms<quietest ? rms : Math.min(GATE, quietest*1.02+1e-6);
-  var gain=Math.min(MOST_GAIN,Math.max(1,KEEP_UNDER*GATE/Math.max(quietest,1e-6)));
+  /* HOW LOUD HE ACTUALLY IS, not how quiet his room is.  This set the gain from
+     the mic's NOISE FLOOR --- lifting the floor to just under her gate --- so
+     the cleaner the microphone the harder it pushed, and a good mic was boosted
+     hardest of all.  Then every sample past 1.0 met the clamp below and was
+     flattened to exactly 1.0.  Measured 2026-09-12 on his own takes: 37.9% then
+     7.8% of samples pinned at full scale, with his mic level correct at the
+     device and the gain reading 2.9 in the panel.  A clipped wave has no shape
+     left, and shape is the whole of what her ear names --- so this was quietly
+     destroying his voice before she ever heard it.
+     Now the gain is whatever lifts him toward full scale WITHOUT reaching it:
+     a quiet mic is still rescued, a good one is left alone, and the clamp below
+     becomes what it was meant to be --- a guard that never fires. */
+  var peak=0;
+  for(var i=0;i<out.length;i++){ var a=out[i]<0?-out[i]:out[i]; if(a>peak) peak=a; }
+  /* HIS PEAK, AND NOTHING ELSE.  Taking the smaller of this and the old
+     noise-floor rule let a noisy room cap the gain at ~1.8x, so his quiet
+     syllables fell under her ear's GATE and were thrown away as silence:
+     measured 2026-09-12, 216 ticks of him reached her in 83 seconds of
+     talking, against 6919 before. One rule --- lift his loudest sample to just
+     under full scale --- rescues a quiet mic AND never reaches the clamp. */
+  var gain=peak>1e-6 ? Math.min(MOST_GAIN,Math.max(1,KEEP_UNDER/peak)) : 1;
   var sent=[];
   for(var i=0;i<out.length;i++)
     sent.push(+Math.max(-1,Math.min(1,out[i]*gain)).toFixed(4));
@@ -4709,7 +4729,14 @@ fetch('/meta',{cache:'no-store'}).then(function(r){ return r.json(); }).then(fun
      view window and sound bars."*  The panel keeps what it SHOWS and drops
      what it EXPLAINS.  Nothing measured here is lost --- every number above is
      still on `/state` for any instrument that wants it. */
-  box.querySelector('#eyeInfo').textContent = '';
+  /* HER VIEW LINE, and nothing else.  His, 2026-09-11: *"leave at least some
+     similarity id instead"*.  Her sight is three numbers now --- what the
+     picture is, as a level, and where it is --- so the panel shows those three
+     and explains nothing. */
+  var vw = d.view || [0, 0, 0];
+  box.querySelector('#eyeInfo').textContent =
+    'similarity ' + Math.round(vw[0] * 512) + '   ' + vw[0].toFixed(4) +
+    '    x ' + vw[1].toFixed(3) + '   y ' + vw[2].toFixed(3);
   }
 
   /* WHAT REACHED EACH EAR, one bar a band, left over right.

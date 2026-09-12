@@ -140,6 +140,14 @@ class Window:
         self.rate = float(rate)
         got = np.asarray(pcm, np.float32).ravel()
         if got.size:
+            # INTO HER REGISTER, HERE, ONCE.  His order, 2026-09-12: *"it first
+            # has to be converted to her register, and then cut to eleven
+            # millisecond pieces --- just once."*  The page posts him in quarter
+            # second chunks; each is brought into her register as it lands
+            # (frequencies x REGISTER, time untouched), and from here on her
+            # ear only cuts.  Her own air never passes this --- it is already hers.
+            from body.hearing import toHer
+            got = toHer(got)
             self._said = np.concatenate([self._said, got])
         keep = int(0.5 * self.rate)
         if self._said.size > keep:

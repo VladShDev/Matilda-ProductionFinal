@@ -109,54 +109,123 @@ SOUND_SLIDES = 1
 #: reason to believe the choosing rule, and the rule is what failed.
 SOUND_HOPS = 1
 
-#: THE ONE DOOR (his rule, 2026-09-04): the world enters her ears in HER
-#: register, once, and what she stores is that.  His voice, her mother's word,
-#: anything in the room passes `door` --- resampled by REGISTER (pitch, formants
-#: and pace rise together, his certified 1.75 of 2026-08-31) and then banded ---
-#: and nothing before it converts: her mother keeps his words raw and speaks
-#: them raw, so he hears her as he spoke.  Her own voice is already hers: her
-#: echo is her own line and does not pass the door.  Before this the shift
-#: lived at her mouth (the bank played his piece x1.75, retired 2026-09-02) and
-#: then in the bank's cutter alone, so his live word and her own were named in
-#: two registers and she never answered him (her56: four sayings, no reply).
-REGISTER = 1.75
+#: HER REGISTER.  His order, 2026-09-12: *"it first has to be converted to her
+#: register, and then cut to eleven millisecond pieces --- just once."*  The
+#: outside is brought into her register where it arrives (`window.say`), once,
+#: and the door after it only cuts.  1.75 is his certified number of 2026-08-31.
+#:
+#: FREQUENCIES BY REGISTER, TIME NOT AT ALL.  It used to be a resample, which
+#: raised pitch and formants and also ran his voice 1.75x fast --- so it was
+#: thrown out, and with it the register itself.  `toHer` now stretches time by
+#: REGISTER (WSOLA, overlap-add on aligned grains) and resamples by the same,
+#: so a register would land his voice where hers lives and last exactly as
+#: long as he spoke.
+#:
+#: AND THE MEASURED REGISTER FOR THE MOUTH SHE HAS IS 1.0.  His 1.75 was
+#: certified on 2026-08-31 against the recorded-piece bank.  Swept 2026-09-12
+#: against her seven-muscle tract, judged by praat and by her own recogniser:
+#: every step above 1.0 made her worse on every count (follows +0.888 -> +0.768,
+#: F1 +0.571 -> +0.342, HNR 12.9 -> 4.9 dB; words through her ear 12 -> 1 of
+#: 19).  Her similarity is a shape with loudness divided out, and her own rows
+#: are named by the same ear, so his /a/ and hers already land together; a
+#: shift only pushed him toward her hiss.  At 1.0 `toHer` is the identity and
+#: the structure --- once, where his air arrives; the door only cuts --- stands
+#: ready for any register he names.
+REGISTER = 1.0
+
+#: the grains `toHer` works in, at her 16 kHz: a 25 ms window, a 10 ms hop, and
+#: how far it may slide a grain to line it up with the last (6 ms)
+_GRAIN, _GRAIN_HOP, _GRAIN_SEEK = 400, 160, 96
+
+#: HOW MUCH AIR HER EAR LISTENS TO FOR ONE PIECE.  The piece is one tick and the
+#: step is one tick --- that never moves.  But a frequency cannot be told in
+#: less time than about one of its cycles: in 11 ms of air nothing below ~90 Hz
+#: apart is separable, and fifteen of her 24 bands are narrower than that.
+#: Measured 2026-09-12 with her own judge on his voice: named from 11 ms of
+#: air, 6 of his 19 words survive her ear; named from the last 44 ms, 14 (16
+#: with her ear bypassed altogether).  So each piece is named from the last
+#: four ticks of air --- his and hers alike, the one gate --- and stored as
+#: one piece.  A cochlea does the same: low tones take longer to hear.
+LISTENS = 4 * TICK_SECONDS
+
+
+def _stretch(y: np.ndarray, factor: float) -> np.ndarray:
+    """The same voice, `factor` times longer, pitch untouched (WSOLA)."""
+    N, Hs, Sr = _GRAIN, _GRAIN_HOP, _GRAIN_SEEK
+    Ha = Hs / factor
+    w = np.hanning(N).astype(np.float32)
+    n = int(len(y) * factor)
+    out = np.zeros(n + 2 * N, np.float32)
+    norm = np.zeros(n + 2 * N, np.float32)
+    po, pi, prev = 0, 0.0, None
+    while po + N <= out.size and int(pi) + N + Sr + Hs < len(y):
+        i = int(pi)
+        if prev is not None and i - Sr >= 0:
+            offs = np.arange(-Sr, Sr + 1, 2)
+            i += int(offs[int(np.argmax([float(np.dot(y[i + d:i + d + N], prev)) for d in offs]))])
+        out[po:po + N] += y[i:i + N] * w
+        norm[po:po + N] += w
+        prev = y[i + Hs:i + Hs + N]
+        po += Hs
+        pi += Ha
+    return out[:n] / np.maximum(norm[:n], 1e-6)
 
 
 def toHer(pcm, want: int | None = None) -> np.ndarray:
-    """His sound in her register: every REGISTER-th sample, by interpolation.
-    `want` samples out (the whole, shortened by REGISTER, when None)."""
+    """HIS SOUND IN HER REGISTER --- frequencies x REGISTER, and it lasts
+    exactly as long as he spoke.  Stretched by REGISTER, then resampled by
+    REGISTER.  `want` trims or front-pads to that many samples; the whole, as
+    long as it came, when None.  A piece too short to overlap grains (under
+    ~50 ms) is plainly resampled, pace and all --- the door never sends one."""
     y = np.asarray(pcm, np.float32).ravel()
-    if want is None:
-        want = int(len(y) / REGISTER)
-    if want <= 0 or y.size < 2:
-        return np.zeros(max(want, 0), np.float32)
-    i = np.arange(want, dtype=np.float64) * REGISTER
-    return np.interp(np.minimum(i, len(y) - 1), np.arange(len(y)), y).astype(np.float32)
+    n = len(y) if want is None else int(want)
+    if n <= 0 or y.size < 2:
+        return np.zeros(max(n, 0), np.float32)
+    if abs(REGISTER - 1.0) < 1e-6:
+        out = y
+    elif y.size < _GRAIN + _GRAIN_HOP + 2 * _GRAIN_SEEK:
+        i = np.arange(int(len(y) / REGISTER), dtype=np.float64) * REGISTER
+        out = np.interp(np.minimum(i, len(y) - 1), np.arange(len(y)), y)
+    else:
+        s = _stretch(y, REGISTER)
+        i = np.arange(0, len(s), REGISTER, dtype=np.float64)
+        out = np.interp(np.minimum(i, len(s) - 1), np.arange(len(s)), s)[:len(y)]
+    out = np.asarray(out, np.float32)
+    if out.size < n:
+        out = np.pad(out, (n - out.size, 0))
+    return out[-n:]
 
 
 def grabFor(rate: float = 16000.0, seconds=None) -> int:
-    """How many raw samples one tick of her ear takes through the door."""
-    want = int(round(rate * (TICK_SECONDS if seconds is None else seconds)))
-    return int(np.ceil(want * REGISTER)) + 1
+    """How many raw samples one tick of her ear takes: one tick's worth.  (It
+    was REGISTER times more, resampled down inside the door; the register
+    moved to where his air arrives, once, and the door only cuts.)"""
+    return int(round(rate * (TICK_SECONDS if seconds is None else seconds)))
 
 
 def door(pcm, rate: float = 16000.0, seconds=None, hops: int = 1) -> np.ndarray:
-    """One tick of the world, as her ear takes it: the LAST grabFor() raw
-    samples (padded in front when fewer), into her register, into her bands."""
-    seconds = TICK_SECONDS if seconds is None else seconds
-    want = int(round(rate * seconds))
+    """One piece of the world, as her ear takes it: the LAST `seconds` of air
+    (`LISTENS` when None; padded in front when fewer), into her bands.  NOTHING
+    IS CONVERTED HERE: his air was brought into her register once, as it
+    arrived (`window.say`).  His order, 2026-09-12: first her register, then
+    the 11 ms pieces, once."""
+    seconds = LISTENS if seconds is None else seconds
     grab = grabFor(rate, seconds)
     y = np.asarray(pcm, np.float32).ravel()
     if y.size < grab:
         y = np.pad(y, (grab - y.size, 0))
-    return bands_from_pcm(toHer(y[-grab:], want), rate, seconds, hops)
+    return bands_from_pcm(y[-grab:], rate, seconds, hops)
 
 
 def wordFrames(pcm, rate: float = 16000.0) -> list:
-    """A whole word of his through the door, one frame a tick of hers."""
+    """A whole word of his through the door, one frame a tick of hers: each
+    frame named from the last `LISTENS` of air, stepped one tick.  The word
+    arrives already in her register (it came off the queue, `window.say`), so
+    this only cuts --- nothing converted a second time."""
     y = np.asarray(pcm, np.float32).ravel()
-    grab = grabFor(rate)
-    stride = int(round(rate * TICK_SECONDS * REGISTER))
+    grab = grabFor(rate, LISTENS)
+    stride = int(round(rate * TICK_SECONDS))
+    y = np.concatenate([np.zeros(grab - stride, np.float32), y])
     return [door(y[i:i + grab], rate) for i in range(0, len(y) - grab + 1, max(1, stride))]
 
 LOW_HZ = 50.0

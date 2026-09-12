@@ -74,7 +74,7 @@ _ECHO_COLS = "{time: 'DOUBLE', id: 'INTEGER', motor: 'STRUCT(id INTEGER, lvl DOU
 _EXP_COLS = ("{id: 'INTEGER', sensor: 'STRUCT(id DOUBLE, lvl DOUBLE)[]', "
              "spindle: 'STRUCT(id INTEGER, lvl DOUBLE)[]', "
              "echo: '" + _ECHO + "', sound: '" + _ECHO + "', "
-             "view: '" + _VIEW + "[]', avgState: 'DOUBLE', weight: 'DOUBLE', "
+             "view: '" + _VIEW + "[]', "
              "exp: 'STRUCT(id INTEGER)'}")
 
 _TABLES = f"""
@@ -99,8 +99,6 @@ CREATE TABLE IF NOT EXISTS exp (
     echo {_ECHO},
     sound {_ECHO},
     view {_VIEW}[],
-    avgState DOUBLE,
-    weight DOUBLE,
     exp STRUCT(id INTEGER));
 CREATE TABLE IF NOT EXISTS memory (
     short INTEGER[],
@@ -330,7 +328,6 @@ class Store:
                                "echo": asdict(e.echo) if e.echo else None,
                                "sound": asdict(e.sound) if e.sound else None,
                                "view": [asdict(x) for x in e.view],
-                               "avgState": e.avgState, "weight": e.weight,
                                "exp": asdict(e.exp)})
 
     def _keep(self) -> None:
@@ -449,46 +446,19 @@ class Store:
                         _apply(cur, delta)
                     yield Tick(time=t, life=_life(cur), exp=ExpRef(**x), plan=ExpRef(**p))
 
-    def chainLives(self, ids) -> dict:
-        """The kept chains, whole --- id -> [Life,...], oldest first."""
-        return {int(k): [t.life for t in self.walk("WHERE exp.id = ?", [int(k)])] for k in ids}
-
-    def openRun(self, expId: int) -> list:
-        """The still-open run's ticks, whole, oldest first."""
-        return list(self.walk("WHERE exp.id = ?", [int(expId)]))
-
-    def posesOf(self) -> dict:
-        """THE POSE THAT MADE EACH SOUND SHE HAS EVER MADE --- echo id -> her
-        whole output at the newest tick her echo carried it (his, 2026-09-05:
-        a heard sound in a replayed snapshot is hers to say back)."""
-        if not self.read:
-            self.flush()
-        if self._legacy():
-            rows = self.db.execute(
-                "SELECT eid, motor FROM ("
-                "  SELECT life.input.echo.id AS eid, life.output.motor AS motor,"
-                "         row_number() OVER (PARTITION BY life.input.echo.id ORDER BY time DESC) AS rn"
-                "  FROM tick WHERE life.input.echo.lvl > 0) WHERE rn = 1").fetchall()
-        else:
-            rows = self.db.execute(
-                "SELECT id, motor FROM (SELECT id, motor, row_number() OVER (PARTITION BY id ORDER BY time DESC) AS rn "
-                "FROM echo) WHERE rn = 1").fetchall()
-        return {int(e): [Motor(id=int(m["id"]), lvl=float(m["lvl"])) for m in (ms or [])] for e, ms in rows}
-
     def exps(self) -> list[Exp]:
         if not self.read:
             self.flush()
         got = self.db.execute("SELECT id, sensor, spindle, echo, sound, view, "
-                              "avgState, weight, exp FROM exp").fetchall()
+                              "exp FROM exp").fetchall()
         return [Exp(id=i,
                     sensor=[Sensor(**s) for s in sn],
                     spindle=[Spindle(**s) for s in sp],
                     echo=Echo(**e) if e else None,
                     sound=Heard(**so) if so else None,
                     view=[View(**x) for x in v],
-                    avgState=a, weight=w,
                     exp=ExpRef(**x2) if x2 else ExpRef(id=0))
-                for i, sn, sp, e, so, v, a, w, x2 in got]
+                for i, sn, sp, e, so, v, x2 in got]
 
     def remember(self) -> Memory:
         got = self.db.execute("SELECT short, long FROM memory").fetchone()

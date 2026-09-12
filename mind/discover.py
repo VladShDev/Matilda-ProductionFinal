@@ -130,7 +130,6 @@ def discover(was, able, want: float, age: int, line: int = 1, way: int = 1,
     # her silent: *"before we make your echo, somewhere pointing not to right
     # place."*  It was here.  This line held her seven mouth muscles OUT of the
     # sweep --- she explored 30 of her 37 --- because her voice was reached the
-    # other way, by NAMING a sound and letting the body walk a recorded piece.
     # That named path is gone (his word: *"we don't need already prepared table
     # ... she would produce any sounds"*), so with this line her voice was
     # reachable from neither direction: not swept, and the name consumed by
@@ -151,14 +150,7 @@ def discover(was, able, want: float, age: int, line: int = 1, way: int = 1,
         nextLine = line % swept + 1          # ...and the next starts at its own 0
     # her voice is among the motors (her mouth's seven articulators are
     # muscles like any other since 2026-09-02), so the sweep moves it too
-    #: ...AND ONE SOUND OF HERS, NAMED, IN THE SAME TICK.  She walks her body's
-    #: own list of what it can make, one a tick, at her effort.
-    kinds = list(able.get("sounds") or ())
-    sid, nextSaid = 0, int(said)
-    if kinds:
-        nextSaid = int(said) % len(kinds)
-        sid = int(kinds[nextSaid])
-        nextSaid = (nextSaid + 1) % len(kinds)
+    nextSaid = int(said)
     plan = {"motor": [{"id": k, "lvl": (max(0.0, min(1.0, now)) if k == line
                                         else max(0.0, min(1.0, held.get(k, 0.0))))}
                       for k in range(1, motors + 1)],

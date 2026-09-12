@@ -219,7 +219,8 @@ def changed(eye_sheet: np.ndarray, before: np.ndarray | None, swing):
     # WHEREVER THE PICTURE LIVES, THIS RUNS THERE.  His standing order ---
     # *"run her only on GPU"* --- and `light.py`'s own idiom: same math, same
     # code, the array module taken from the data.  Measured 2026-09-01: this
-    # registration is 20.7 ms of her 33 ms tick on the host, and her clock
+    # registration is 20.7 ms on the host --- nearly two of her 11.1 ms ticks,
+    # which is why it is not on the host any more --- and her clock
     # fell 22 -> 17 ticks a second when the reflex was wired.  Not one number
     # below changes; only where it is computed.
     xp = _mod(eye_sheet)

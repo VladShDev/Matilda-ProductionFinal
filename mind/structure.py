@@ -85,9 +85,10 @@ class Echo:
 
 @dataclass
 class Heard:
-    """Somebody else's sound, in the same index space as hers, so his voice
-    and hers compare as integers.  His note on the exp's copy of
-    `similarity`: *"prelearned similarity id"*.
+    """A sound at her ear --- anybody's, her own included.  Three lines and
+    nothing more (his word, 2026-09-12: *"similarity ID is level in sound.
+    That's it.  Nothing more."*): `similarity` is its level, `lvl` how loud,
+    `balance` which side.
     """
     id: int = 1
     similarity: float = 0.0
@@ -165,8 +166,6 @@ class Exp:
     echo: Echo | None = None
     sound: Heard | None = None
     view: list[View] = field(default_factory=list)
-    avgState: float = 0.0
-    weight: float = 0.0
     #: WHICH EXPERIENCE THIS ONE IS PART OF --- 0 is none.  His decision,
     #: carried from the old tree and agreed again 2026-08-27: a chain is an
     #: exp with children --- same shape, same fold, at any depth --- and A
@@ -174,23 +173,6 @@ class Exp:
     #: it has shown itself to be a thing rather than a coincidence.  This is
     #: what lets a small step from a big story outweigh a boring local step.
     exp: ExpRef = field(default_factory=lambda: ExpRef(id=0))
-
-
-@dataclass
-class Prediction:
-    """One expected moment --- table `prediction`.
-
-    A REFERENCE, NOT A COPY.  His pick, 2026-08-27 ("a"): a finished tick is
-    immutable --- the tape's own contract --- so pointing at the chain equals
-    copying it, byte for byte, forever.  `id` is the exp whose chain she
-    expects, `at` which step of it, `time` the moment she expects it; the
-    expected life is the chain's own tick, one join away.  The copied shape
-    cost 2.8 million rows and 5.3 GB in one life, all of it re-writing seven
-    immutable chains.
-    """
-    id: int = 1
-    time: float | None = None
-    at: int = 0
 
 
 @dataclass

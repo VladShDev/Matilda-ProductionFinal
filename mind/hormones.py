@@ -381,8 +381,14 @@ class Hormones:
         # ...AND THE FLOOR FOLLOWS, SLOWLY --- her usual dopamine.  Its pull on
         # her state (`corrections`) is the excess over this: above it lifts,
         # below it drags, and the drag is the craving that feeds her effort.
-        self._usualEase += (1.0 - 0.5 ** (TICK_SECONDS / FLOOR_HALF_LIFE)) * (
-            self.level[EASE] - self._usualEase)
+        # HER SET-POINT ONLY RISES.  His law, 2026-09-12, and the biology of
+        # tolerance: the more she has been paid, the lower she sits between
+        # payments, and the harder she reaches.  This is the one place the law
+        # has hands --- `corrections()` puts dopamine MINUS this into her state.
+        # Followed both ways it forgot a profit within ten minutes.
+        if self.level[EASE] > self._usualEase:
+            self._usualEase += (1.0 - 0.5 ** (TICK_SECONDS / FLOOR_HALF_LIFE)) * (
+                self.level[EASE] - self._usualEase)
         # ...AND THE SAME FLOOR FOLLOWS HER STATE.  His, 2026-09-11: *"we spelled
         # just one value ... dopamine boost improves her state to close
         # experience, and that is her state when it is increasing, and the
@@ -406,8 +412,16 @@ class Hormones:
         # first minute reads as a fall from a comfort she never had.)
         if self._usualState is None:
             self._usualState = float(life.input.state)
-        self._usualState += (1.0 - 0.5 ** (TICK_SECONDS / FLOOR_HALF_LIFE)) * (
-            float(life.input.state) - self._usualState)
+        # ...AND IT ONLY RISES.  His law, 2026-09-12: *"if you already feel
+        # yourself better, then your state never be on the floor again.  It
+        # doesn't come back to zero.  As much you had profit before, as much you
+        # want.  So this gap every time rising, slowly."*  Followed both ways it
+        # sank with her and she could come back to zero --- the one thing the
+        # law forbids.  (A rise still counts at the worst of her life: the cut
+        # measures the rise over the run's OWN lowest, not over this floor.)
+        if float(life.input.state) > self._usualState:
+            self._usualState += (1.0 - 0.5 ** (TICK_SECONDS / FLOOR_HALF_LIFE)) * (
+                float(life.input.state) - self._usualState)
         self._wasState = float(life.input.state)
         life.input.sensor = ([s for s in life.input.sensor
                               if int(s.id) not in self.level]

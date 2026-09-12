@@ -47,21 +47,6 @@ NEAR = 10.0
 FAINTEST = 0.0002
 
 
-class Still:
-    """A head that does not move.  The ragdoll replaces this and nothing else."""
-
-    def __init__(self, at=(0.0, 0.5, 0.0), looking=(0.0, 0.0, -1.0)) -> None:
-        self.ear = np.asarray(at, np.float32)
-        f = np.asarray(looking, np.float32)
-        self._forward = f / max(float(np.linalg.norm(f)), 1e-6)
-
-    def frame(self):
-        up = np.asarray((0.0, 1.0, 0.0), np.float32)
-        right = np.cross(self._forward, up)
-        right = right / max(float(np.linalg.norm(right)), 1e-6)
-        return up, right, self._forward
-
-
 def _shadow(toward: np.ndarray, ear_out: np.ndarray, forward: np.ndarray) -> np.ndarray:
     """What a head does to a sound coming from `toward`, per band.
 

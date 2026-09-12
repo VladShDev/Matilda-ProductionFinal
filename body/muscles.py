@@ -32,7 +32,7 @@ import numpy as np
 
 from . import speech
 from .joints import AXES
-from .hearing import SOUND_BANDS, SOUND_SLIDES, TICK_SECONDS, bands_from_pcm
+from .hearing import LISTENS, SOUND_BANDS, SOUND_SLIDES, TICK_SECONDS, bands_from_pcm
 
 #: what she orders, in order: how hard she blows, how fast the folds buzz, how
 #: open her mouth is, how far forward her tongue is, whether it goes out through
@@ -52,8 +52,13 @@ from .speech import PITCH_HZ    # noqa: E402,F401
 #: newborn's tract, hers or a real one's.  The ranges below are the adult
 #: table's spans (F1 270-770, F2 1000-2300) x 1.3; F3 follows the same law.
 OPEN_HZ = (350.0, 1000.0)      # F1, a toddler's tract (1.3 x adult)
-#: F2, likewise
-FRONT_HZ = (1300.0, 3000.0)    # F2, likewise
+#: F2, likewise --- BUT THE WHOLE ADULT TABLE, not a slice of it.  The span
+#: above (F2 1000-2300) left out every back vowel: Peterson & Barney 1952,
+#: men, put /u/ at 870 Hz and /o/ at 840.  x 1.3 = 1100.  Measured 2026-09-12
+#: with the slice: the nearest sound her mouth could make to a piece of his
+#: speech was 0.75 like it (median, her own ear's bands) --- no lookup can
+#: pick a row she does not have.  His word: open her tract's reach.
+FRONT_HZ = (1100.0, 3000.0)    # F2, the full adult table x 1.3
 
 MOUTH_GAIN = 2.7
 #: born able to be heard, and it is ONE number: she has one mouth
@@ -174,7 +179,7 @@ class Muscles:
 #: therefore level divided out), not on matching her absolute f0.  Giving
 #: her a throat she does not have bought nothing and cost her her voice.
 OPEN_HZ = (350.0, 1000.0)      # F1, a toddler's tract (1.3 x adult; see above)
-FRONT_HZ = (1300.0, 3000.0)    # F2, likewise
+FRONT_HZ = (1100.0, 3000.0)    # F2, the full adult table x 1.3 (see above)
 
 #: HOW LOUD SHE IS AT FULL EFFORT, as a peak in the microphone.  Her mother's
 #: words are normalised to 0.7 and this puts a full-throated open vowel of hers
@@ -225,7 +230,8 @@ class Voice:
     #: step, because a piece begins at its own first sample whatever the
     #: air was doing a moment before.  He heard it as *"like some one put
     #: mic simultineosli with her speach"*.  Two milliseconds of ramp at
-    #: each seam is below the shortest sound she can make (33 ms) and
+    #: each seam is below the shortest sound she can make (one tick, 11.1 ms)
+    #: and
     #: removes the step; nothing about WHICH piece she says changes.
     FADE = 0.002
 
@@ -235,7 +241,7 @@ class Voice:
     #: was just said, short enough that it is imitation and not a recording.
     KEEPS = 12
 
-    def __init__(self, bands: int, slides: int, bank: str | None = None) -> None:
+    def __init__(self, bands: int, slides: int) -> None:
         self.bands, self.slides = bands, slides
         self.parts = len(VOICE_PARTS)   # kept: old probes ask the shape
         self.can = np.float32(BORN_LOUD)
@@ -243,6 +249,9 @@ class Voice:
         self._grain = int(round(speech.RATE * TICK_SECONDS)) // slides
         self._step = self._grain * slides
         self.pcm = np.zeros(0, np.float32)
+        #: THE LAST `LISTENS` OF HER OWN AIR --- her ear names each piece of
+        #: hers from it, exactly as it names each piece of his (`hearing.door`).
+        self._air = np.zeros(0, np.float32)
         #: WHERE HER MOUTH IS RIGHT NOW --- carried across ticks, because a
         #: mouth does not reset between them.  `say` reaches what it is told
         #: from here; see `say`.
@@ -262,67 +271,6 @@ class Voice:
         #: filing one piece per name made her say the right sequence of wrong
         #: sounds --- 11 of 39 ticks were the sound he actually made, and he
         #: heard it: *"it's again half of my word"*.
-        self.bank: dict = {}
-        self.rows: dict = {}
-        #: ...AND THE SAY SIDE: name -> the pieces that SOUND like it.  `rows`
-        #: answers "which piece is this thing I heard"; `says` answers "which
-        #: piece do I use to MAKE this sound", and they are not the same
-        #: question --- measured 2026-09-02, asking her to say 154 out of
-        #: `rows` handed her a piece that sounds like 220.
-        self.says: dict = {}
-        self.ears: dict = {}
-        #: WHAT SHE HEARD UNDER EACH NAME, IN THE ORDER IT ARRIVED, and how
-        #: far through that order this utterance has got.  A name is not one
-        #: sound: his certified word is 40 ticks wearing only 16 names, and
-        #: 34 of those ticks are a name repeating WITH A DIFFERENT PIECE
-        #: (name 236 five times, five different sounds).  A mouth that knows
-        #: only the freshest piece must get all 34 wrong --- measured
-        #: 2026-08-31: 2.78 from his word against 1.29 when each tick gets
-        #: the piece that belongs to it.
-        #:
-        #: So her mouth walks the name's pieces in the order the world made
-        #: them, and a silence starts the walk again --- a word ends on a gap
-        #: (`WORD_GAP` is her body's own rule) and the next word begins at
-        #: the beginning.  Nothing is stored in her MIND by this: her memory
-        #: still holds only her ear's names, which is all it ever held.  This
-        #: is her mouth remembering how the sound went, which is what
-        #: imitation is.
-        self.recent: dict = {}
-        self.walked: dict = {}
-        if bank:
-            try:
-                got = np.load(bank)
-                ids = [int(i) for i in got["ids"]]
-                for i in ids:
-                    self.bank[i] = np.asarray(got["clip_%d" % i], np.float32)
-                row = got["row"] if "row" in got.files else None
-                ear = got["ear"] if "ear" in got.files else None
-                for k, i in enumerate(ids):
-                    #: A BANK WRITTEN BEFORE THE PIECES STILL LOADS --- it is
-                    #: one piece per name, which is exactly what she had.
-                    name = int(row[k]) if row is not None else i
-                    #: WHAT THIS PIECE ACTUALLY SOUNDS LIKE --- `row` is the
-                    #: clip's own name now, so this is the name her ear will
-                    #: give the air when she says it.  `say`-side lookups use
-                    #: this; the heard side uses `rows` below.
-                    self.says.setdefault(name, []).append(i)
-                    self.rows.setdefault(name, []).append(i)
-                    if ear is not None:
-                        self.ears[i] = np.asarray(ear[k], np.float32)
-                #: ...AND EVERY OTHER NAME IT CAN BE REACHED BY.  One piece,
-                #: two names --- what her ear called his voice and what she
-                #: sounds like saying it --- so her mouth is reachable from
-                #: either side of the same moment.  A bank written before
-                #: these pairs existed simply has none, and behaves as it did.
-                if "pairName" in got.files and "pairPiece" in got.files:
-                    for nm, pc in zip(got["pairName"], got["pairPiece"]):
-                        kin = self.rows.setdefault(int(nm), [])
-                        if int(pc) not in kin:
-                            kin.append(int(pc))
-            except Exception:                          # noqa: BLE001
-                pass                # no bank is a mute mouth, not a crash
-        self._cur = None            # the piece being said
-        self._at = 0                # ...and how far into it she is
         self._ramp = int(round(speech.RATE * self.FADE)) or 1
         self._last = np.float32(0.0)   # where the air was left, for the seam
         #: A HELD COMMAND OUTLIVES ITS PIECE.  His pieces are cut in HER
@@ -334,133 +282,6 @@ class Voice:
         #: `False` restores the old law (a finished piece stays finished)
         #: without touching anything else.
         self.rearm = True
-
-    def play(self, sid: int, lvl: float) -> np.ndarray:
-        """One tick of speaking: the commanded piece's next moment, at her
-        effort.  A finished piece is finished --- a held command does not
-        stutter it; true silence re-arms it."""
-        step = self._step
-        if lvl <= 0.0 or sid not in self.rows:
-            self._cur = None
-            self.walked.clear()      # a gap ends a word: the next one restarts
-            out = np.zeros(step, np.float32)
-            n = min(self._ramp, step)
-            if float(self._last) != 0.0 and n:
-                # ...and silence is arrived at, never jumped to
-                out[:n] = self._last * np.linspace(1.0, 0.0, n, dtype=np.float32)
-                self._last = np.float32(0.0)
-            self.pcm = out
-            return np.zeros((self.bands, self.slides), np.float32)
-        started = self._cur != sid
-        if started:
-            self._cur, self._at = sid, 0
-        #: WHICH PIECE OF THAT NAME --- the freshest, which is the one she
-        #: most recently HEARD wearing it (`heard()` below).  Her memory
-        #: hands her the name; what she actually says is the sound the world
-        #: last made under that name, which is imitation and not a lookup
-        #: table of averages.  Until she has heard one, it is the piece the
-        #: cut filed first.
-        clip = self.bank[self._piece(sid, started)]
-        if self._at >= len(clip):
-            if not self.rearm:
-                self.pcm = np.zeros(step, np.float32)
-                self._last = np.float32(0.0)
-                return np.zeros((self.bands, self.slides), np.float32)
-            self._at = 0                       # still commanded: say it again
-            started = True
-        ch = clip[self._at:self._at + step]
-        self._at += step
-        ran_out = len(ch) < step
-        if ran_out:
-            ch = np.pad(ch, (0, step - len(ch)))
-        ch = ch * np.float32(lvl) * np.float32(min(1.0, float(self.can)))             * (np.float32(1.0) - self.tired)
-        ch = np.asarray(ch, np.float32).copy()
-        n = min(self._ramp, len(ch))
-        if started and n:
-            # THE SEAM, NOT THE SOUND: ramp from where the air was left to
-            # where the piece begins, so a new piece cannot step.
-            up = np.linspace(0.0, 1.0, n, dtype=np.float32)
-            ch[:n] = ch[:n] * up + self._last * (np.float32(1.0) - up)
-        if ran_out and n:
-            ch[-n:] = ch[-n:] * np.linspace(1.0, 0.0, n, dtype=np.float32)
-        self._last = np.float32(ch[-1]) if len(ch) else np.float32(0.0)
-        self.pcm = np.clip(ch, -1.0, 1.0).astype(np.float32)
-        return bands_from_pcm(self.pcm, speech.RATE, TICK_SECONDS)
-
-    def _piece(self, name: int, started: bool) -> int:
-        """WHICH sound of that name this tick is --- the next one she heard.
-
-        The name is her memory's word for it; the pieces wearing that name are
-        her mouth's, in the order the world made them.  Saying the name again
-        inside one utterance takes the NEXT one, which is how a word that uses
-        one name five times comes back as five different sounds.  Past the end
-        it holds the last --- she has run out of what she heard, and repeating
-        the final sound is nearer than starting the word over.
-        """
-        kin = self.recent.get(int(name))
-        if not kin:
-            # NOTHING SHE HAS HEARD UNDER THIS NAME, so she reaches for the
-            # piece that MAKES the sound rather than the one that WAS the
-            # sound.  This read `rows`, which holds both --- what her ear
-            # called his voice AND what a piece sounds like --- so asking her
-            # to say 154 could hand her a piece that sounds like 220.
-            # Measured 2026-09-02: 3 of 12 of her own pieces came back under
-            # the name they were filed under.  `says` is only the ones that
-            # sound like it; `rows` stays the fallback for a bank written
-            # before the two sides were told apart.
-            said = self.says.get(int(name))
-            return (said or self.rows[int(name)])[0]
-        at = int(self.walked.get(int(name), 0))
-        #: EVERY TICK SHE SAYS IT, NOT ONLY THE FIRST.  Holding one name for
-        #: three ticks is three of the sounds she heard under it, because
-        #: that is what she heard --- measured 2026-08-31 on his certified
-        #: word: advancing only on a change leaves 1.63 from his word,
-        #: advancing every tick 1.30, against a ceiling of 1.29.
-        self.walked[int(name)] = at + 1
-        return kin[min(at, len(kin) - 1)]
-
-    def heard(self, name: int, frame) -> int | None:
-        """The world said something under `name` --- WHICH piece was it.
-
-        Her ear names the tick (one quantise, indexed, free); the piece is
-        the nearest one already wearing that name (~15 dot products, measured
-        at 0.211 ms against her 33 ms tick --- his rule, *cut by lookup, not
-        by scan*).  The piece found moves to the FRONT of its row, so what
-        she says under that name is what she last heard under it.
-
-        MEASURED 2026-08-31 on his certified word: choosing inside the name
-        gives her the sound he actually made on 38 of 40 ticks, against 11 of
-        39 when one piece stood for the whole name.  Returns the piece, or
-        None when nothing of hers wears that name.
-        """
-        kin = self.rows.get(int(name))
-        if not kin or not self.ears:
-            return None
-        got = np.asarray(frame, np.float32).reshape(-1)
-        size = float(np.linalg.norm(got))
-        if size <= 0.0:
-            return None
-        got = got / size
-        best, score = None, -2.0
-        for i in kin:
-            ear = self.ears.get(i)
-            if ear is None or ear.shape != got.shape:
-                continue
-            v = float(np.dot(ear, got))
-            if v > score:
-                best, score = i, v
-        if best is None:
-            return None
-        #: IN THE ORDER IT ARRIVED.  Her mouth keeps what the world said
-        #: under this name, oldest first, so replaying the name walks the
-        #: sounds the way they were made.  Bounded, because a mouth is not
-        #: a tape: what she heard long ago under a name is not what she is
-        #: imitating now.
-        got = self.recent.setdefault(int(name), [])
-        got.append(best)
-        if len(got) > self.KEEPS:
-            del got[:len(got) - self.KEEPS]
-        return best
 
     def say(self, ordered) -> np.ndarray:
         """HER OWN MOUTH: `(parts, slides)` in, `(bands, slides)` out --- what
@@ -484,11 +305,14 @@ class Voice:
         A held bell-tone is what ONE articulator setting per tick sounds like
         when a tick is long: `SOUND_SLIDES` is 1, so her mouth is told one
         shape per tick and holds it.  At 1.5 s a tick that is a 1.5-second
-        drone and nothing else is reachable.  At 33 ms it is thirty shapes a
-        second, and a formant transition takes 30-50 ms --- so a syllable
-        becomes expressible for the first time.  (A stop burst is 5-20 ms and
-        still does not fit inside a 33 ms tick; that one needs her clock
-        faster, which is what `MATILDA_FPS` is for.)
+        drone and nothing else is reachable.  AT HER 11.1 ms IT IS NINETY
+        SHAPES A SECOND, and a formant transition takes 30-50 ms --- three to
+        five shapes across one transition, so a syllable is not merely
+        expressible but shaped.  A stop burst is 5-20 ms: most of that range
+        now fits in a tick, which it did not at 33 ms.  (Her clock is
+        `MATILDA_FPS`; 11.1 ms was measured 2026-09-11 to be the best of
+        22.2 -> 6.7 ms for naming his voice --- 159 distinct names against 146
+        at 8 ms --- so faster is not better here, it is worse.)
 
         HER MOUTH HAS MASS, THE SAME WAY HER JOINTS DO --- `at + (want - at) *
         rate`, carried in `_shape` across ticks.  The rate is 1.0, which is not
@@ -526,7 +350,10 @@ class Voice:
             self._voice = None            # a silent mouth starts afresh
             self._lineEnd = None
             self.pcm = np.zeros(steps * grain, np.float32)
-            return np.zeros((self.bands, self.slides), np.float32)
+            # ...and the tail of what she just said is still in the air her
+            # ear listens to, for as long as it would be in his
+            self._air = np.concatenate([self._air, self.pcm])[-int(round(speech.RATE * LISTENS)):]
+            return bands_from_pcm(self._air, speech.RATE, LISTENS)
         f0 = PITCH_HZ[0] + (PITCH_HZ[1] - PITCH_HZ[0]) * pitch
         f1 = OPEN_HZ[0] + (OPEN_HZ[1] - OPEN_HZ[0]) * open_
         f2 = FRONT_HZ[0] + (FRONT_HZ[1] - FRONT_HZ[0]) * front
@@ -537,7 +364,11 @@ class Voice:
         # judge heard her mother's own "matilda" through her articulators as
         # "matilda" 0.77 with the table's F3 and as "your" with that law
         # (2026-09-04).  The English table's F3 spans 2,400-2,550 Hz; x 1.3.
-        f3 = 3100.0 + 250.0 * front
+        # ...AND THE WHOLE TABLE'S F3 SPANS 2,240-3,010 (Peterson & Barney
+        # 1952, men, /u/ to /i/), x 1.3 = 2,900-3,900: it rides with `front`
+        # across a child's span, as the second formant does, instead of
+        # standing at one place.  His word, 2026-09-12, with the reach above.
+        f3 = 2900.0 + 1000.0 * front
         # HOW HARD SHE BLOWS is what her flesh may limit, and it limits the
         # blowing, not the shape --- being tired makes her quiet, not slurred.
         blow = loud * float(min(1.0, self.can)) * (1.0 - float(self.tired))
@@ -579,8 +410,10 @@ class Voice:
         self.pcm = np.clip(pcm, -1.0, 1.0)
         # HER ROOM DOES TO HER WHAT IT DOES TO HER MOTHER.  Same split, same
         # noise floor --- no path through this body treats her own voice as a
-        # special kind of sound.
-        return bands_from_pcm(self.pcm, speech.RATE, TICK_SECONDS)
+        # special kind of sound.  Her piece is named from the last `LISTENS`
+        # of her own air, exactly as his is from his (the one gate).
+        self._air = np.concatenate([self._air, self.pcm])[-int(round(speech.RATE * LISTENS)):]
+        return bands_from_pcm(self._air, speech.RATE, LISTENS)
 
     def spend(self, made: np.ndarray) -> float:
         """Pay for the sound.  Shouting tires a throat; whispering does not."""

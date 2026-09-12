@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import numpy as np
 
+from .hearing import TICK_SECONDS
 from .ragdoll import DT, G, STEPS_PER_TICK
 
 #: What a full 1 g reads as, leaving room above it for a real jolt to be felt as
@@ -39,13 +40,17 @@ FULL_TURN = 2.0
 #: thirtieth of a second.  Nothing is being smoothed for tidiness: leaving it
 #: out is what claims she has a massless organ.
 #:
+#: (her clock, so a rate here is a time of his and not a count of ticks)
+#:
 #: Measured 2026-09-01, why it is here: with the acceleration correct but
 #: undamped, her own ragdoll's per-tick jitter still drove the reading to its
 #: ceiling on 95% of ticks --- a solver wobble of four millimetres becomes
 #: 1.4 g when a second difference is divided by a thirtieth of a second
-#: squared.  At 0.25 it follows a real jolt within four ticks and ignores one
-#: tick of tremor.
-SETTLES = 0.25
+#: squared.  It follows a real jolt within four ticks and ignores one tick of
+#: tremor.
+#:
+#: A half-life in his seconds, so it settles the same at any clock.
+SETTLES = 1.0 - 0.5 ** (TICK_SECONDS / 0.0268)
 
 
 def _split(v: float) -> tuple[float, float]:

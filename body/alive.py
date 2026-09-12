@@ -13,7 +13,6 @@ A LOOK IS SPREAD ACROSS TICKS, and that is what makes 33 ms hold.  Measured:
 
     light.see        16.3 ms
     parts.find       25.0 ms
-    bind.Seen.look   22.6 ms
                      ------
     one look         63.8 ms      almost TWO ticks
 
@@ -40,14 +39,14 @@ WHERE = 6
 #: seconds whether or not she takes it.
 FEEDS_FOR = 0.25
 
-from body import bind, light, parts, speech
+from body import light, parts, speech
 from body.air import hear
-from body.alike import FLOOR, SILENCE
+from body.alike import ALIKE_KINDS, FLOOR, SILENCE, _unit, level_of
 from body.ears import align
-from body.teacher import HIS_BAR, LIFT_HOLD, LIFT_TO, Teacher
+from body.teacher import LIFT_HOLD, LIFT_TO, Teacher
 from body.hearing import (LOOK_SECONDS, REGISTER, SOUND_BANDS, SOUND_HOPS,  # noqa: E501
                           SOUND_SLIDES, TICK_SECONDS,
-                          bands_from_pcm, door, wordFrames)
+                          bands_from_pcm, door, grabFor, wordFrames)
 from body.ticks import Ticks
 from time import perf_counter as _perf
 from body.joints import AXES
@@ -63,6 +62,48 @@ from body.room import ROOM, Room
 from body.window import Window
 from body import balance, orient, skin
 from mind.structure import Motor, Sensor, Spindle, Tick, View
+
+
+#: WHERE EACH CONE SITS ON HER RETINA, in -1..1, made once.  Her whole
+#: picture's x and y are where its light sits, weighted by these.
+_RET_X = np.tile(np.linspace(-1.0, 1.0, light.RETINA_W, dtype=np.float32), light.RETINA_H)
+_RET_Y = np.repeat(np.linspace(-1.0, 1.0, light.RETINA_H, dtype=np.float32), light.RETINA_W)
+
+
+def wholePicture(picture) -> tuple:
+    """HER WHOLE PICTURE AS ONE THING --- `(level, x, y)`.
+
+    His word, 2026-09-11: *"she sees picture, that picture all has to has ONE
+    similarity id, and when all picture moves those directions has to be x and
+    y"* --- and, the same day: *"our view already doesn't need any parts.
+    Nothing.  She just sees some picture, and this picture is moving."*
+
+    NO CUT.  Until 2026-09-12 this took `parts.find` --- the old per-object
+    view, 70 surfaces a look, 20.7 of a 32.6 ms look on his 4060 --- and kept
+    the biggest surface's name, throwing 69 away.  The whole picture is named
+    directly, by the same `parts._alike` that named a surface: the direction
+    of its colour (proportion is the frame's own, constant), in the same 512
+    kinds her ear names a sound in, divided by that count so it is a LEVEL.
+    Its x and y are where its light sits, in -1..1, and they move when the
+    picture moves.  Measured 2026-09-12: 3.3 ms on the host, the same level
+    the cut gave (0.5703 against 0.5684) for the same picture.
+    """
+    pic = np.asarray(picture, np.float32)
+    if pic.ndim != 3 or not pic.size:
+        return 0.0, 0.0, 0.0
+    flat = pic.reshape(-1, pic.shape[-1])
+    bright = flat.sum(axis=1)
+    total = float(bright.sum())
+    if total <= 0.0:
+        return 0.0, 0.0, 0.0
+    row = np.zeros((1, parts.COLUMNS), np.float32)
+    row[0, 3] = row[0, 4] = 1.0
+    row[0, parts.COLOUR] = flat.mean(axis=0)
+    name = int(parts._alike(row)[0])
+    n = min(bright.size, _RET_X.size)
+    return (float(name) / float(ALIKE_KINDS),
+            float(np.dot(_RET_X[:n], bright[:n]) / total),
+            float(np.dot(_RET_Y[:n], bright[:n]) / total))
 
 
 #: THE PICTURE BOARD --- WHERE SHE ACTUALLY LOOKS, which is not where the
@@ -96,7 +137,9 @@ BOARD_CARDS = ("bed", "mirror", "teacher", "papa", "window")
 #: one word before fading can be told from chance, and her mother names about
 #: twice a second when the baby is looking --- so half a minute a card is many
 #: hearings and still five cards in three minutes.
-BOARD_TICKS = 900
+#: How long one card stays up, in his seconds.
+CARD_SECONDS = 30.0
+BOARD_TICKS = int(round(CARD_SECONDS / TICK_SECONDS))
 #: (ground, mark) per card --- far apart in her cones, so two cards differ by
 #: COLOUR and by SHAPE, never by brightness alone
 CARD_COLOURS = {
@@ -107,30 +150,6 @@ CARD_COLOURS = {
     "window":  ((0.20, 0.25, 0.30), (0.85, 0.90, 0.40)),
 }
 
-#: A LOUD SOUND TURNS HER WHOLE BODY.  His, 2026-09-01, and it is the ONE case
-#: where something of hers overrides what she is doing: *"if she heard
-#: something loud, if something screaming, she react on it like she push all
-#: your body, never mind about what you're thinking right now because you
-#: scare.  So you will turn to that direction.  That's it."*
-#:
-#: LOUD IS AGAINST HER OWN USUAL, never a decibel somebody typed --- the same
-#: excess-over-the-usual law her rarity, her reward and her boredom all use.
-#: STARTLE_LOUD is how many times her usual counts as a startle.
-STARTLE_LOUD = 3.0
-#: ...and how long the turn lasts.  A startle is BALLISTIC --- it fires, it
-#: turns her, it is over.  A third of a second, which is what an infant's
-#: head-turn to a sudden sound actually takes --- HIS SECONDS THROUGH HER
-#: CLOCK (2026-09-06): written as 10, 0.01 and 200 ticks at 30 a second and
-#: never converted when her clock went to 90 (`b650888`), the startle ran
-#: 0.11 s and warmed in 2.2 s for two days.
-STARTLE_TICKS = int(round(0.33 / TICK_SECONDS))
-#: how quickly her ear's idea of "usual loudness" follows what it hears ---
-#: 0.3 of the gap a second.  Slow enough that a bang is still a bang after
-#: a noisy minute.
-STARTLE_SETTLES = 0.3 * TICK_SECONDS
-#: ...and how long she must have heard sound before she has a usual at all.
-#: Without it her very first sound is infinitely louder than nothing.
-STARTLE_WARM = int(round(6.7 / TICK_SECONDS))
 
 #: HOW MANY MUSCLES MOVE HER EYES --- FOUR, IN OPPOSING PAIRS: left, right,
 #: down, up.  They move no bone, so they sit past her skeleton's axes rather
@@ -171,8 +190,7 @@ class Her:
         self.room = Room()
         self.her = Ragdoll(self.room)
         self.muscles = Muscles()
-        self.voice = Voice(SOUND_BANDS, SOUND_SLIDES,
-                           bank=os.path.join(lives or "lives", "mouth.npz"))
+        self.voice = Voice(SOUND_BANDS, SOUND_SLIDES)
         #: THE PICTURE BOARD --- a second screen on the training wall, his
         #: 2026-09-01 ask.  It shows one card at a time and CARRIES THAT
         #: CARD'S NAME, so when her gaze lands on it her mother says the word
@@ -237,7 +255,6 @@ class Her:
         # sounds, and which one she says is `Voice._piece`.  Handing the
         # piece ids here instead would put 859 unrelated integers into a
         # channel that does arithmetic on them, and nothing would raise.
-        self.mouths = self.voice.rows
         #: HER EYES ARE MUSCLES SHE COMMANDS.  His, 2026-09-01, the rule the
         #: whole thing rests on: *"All of this app has to build on her
         #: opinion ... She has to decide what she doing and why she has to do
@@ -270,7 +287,6 @@ class Her:
         self._eyeWant = np.zeros(EYES, np.float32)
         self._mouthWant = np.zeros(len(VOICE_PARTS), np.float32)
         #: WHAT SHE ASKED TO SAY --- a sound's id and how hard she means it.
-        #: Her mouth's table (`lives/mouth.npz`, `Voice.rows`) holds the pose
         #: that makes each sound her body can make; `Voice.play` walks it at
         #: her effort.  Restored 2026-09-08 on his word: the channel existed
         #: in her voice and nothing in her body had ever called it, so the
@@ -279,14 +295,10 @@ class Her:
         self._sayWant = (0, 0.0)
         #: the startle: ticks of turning left, where to, and how many she has
         #: had --- the last one is glass for him, never hers
-        self._earUsual = 0.0
         #: how many SOUNDING ticks she has heard --- a usual means nothing
         #: until there are enough of them to have one
-        self._earHeard = 0
         self.startles = 0
         #: THE TURN TOWARD A SOUND --- a pan for her eyes, and the ticks it lasts
-        self._earTurn = (0.0, 0)
-        self.turns = 0
         # WHAT SHE CAN ACTUALLY SAY --- and the two RESERVED rows are not it.
         #
         # `0` is her mouth at rest and `1` is the room at rest, and neither is a
@@ -295,9 +307,20 @@ class Her:
         # ladder started ordering it --- measured on the echo line the moment it
         # existed: she commanded id 1 and her mouth answered 0, so 9 tries in 40
         # were her asking for a sound her body cannot make.
-        self.sounds = sorted(k for k in self.mouths
-                                   if k not in (SILENCE, FLOOR))
-        self.resolution = 0.05
+        self.sounds = []
+        #: HER GRAIN --- her mind's one answer to "did anything change?", on
+        #: every line: a value a line never showed, a change worth keeping, the
+        #: rise that closes an experience, the step her record is written at.
+        #: It is NOT the step her muscles move by (a trial moves by her deficit).
+        #:
+        #: HIS WORD, 2026-09-12: 0.01.  Measured the same day on her own state,
+        #: tick to tick: at 1/512 (0.002) half of all her ticks read as a change
+        #: --- an experience every ~100 ms, a fifth of her ticks dropped; at
+        #: 0.05, her muscle's step, one tick in 140 --- and ~15 distinguishable
+        #: levels of his speech; at 0.01, one tick in 22, and ~75 levels.  The
+        #: 512 was the count of the old ear names, which no longer exist: her
+        #: similarity is a continuous level.
+        self.resolution = 0.01
         # HOW LONG A GAP ENDS A WORD --- the period of her SLOWEST sense.  Her
         # ear names something every tick and her eye every `LOOK_SECONDS`, so
         # anything shorter than a look is not a gap, it is her eye not having
@@ -372,32 +395,20 @@ class Her:
         #: `/world {give:{milk}}` since it was written --- reached nothing, and
         #: **nobody could ever feed her.**  His: *"i cant help her at all"*.
         self.atMouth = 0.0
-        self.seen = []
         self.picture = None
         #: HOW MUCH SOUND HER EAR ASKS FOR EACH TICK.  A frame is one tick
         #: wide and may sit in `SOUND_HOPS` places, so the newest placement ends
         #: now and the oldest begins `(SOUND_HOPS-1)/SOUND_HOPS` of a tick
         #: earlier --- she needs that much more than a tick to have the choice.
         self.earSeconds = TICK_SECONDS * (2.0 - 1.0 / SOUND_HOPS)
-        self.eyes = bind.Seen()
         #: her LAST look, kept where the reflex reads it --- on the device
         #: when she has one.  One picture, 3 MB, and it saves copying two.
-        self._eyeWas = None
         #: ...AND THE THING HER EYES ARE ON, carried between looks.  `None` is
         #: her holding nothing, which is a real answer and not a failure.
-        self._held = None
-        self.wasFrame = self.olderFrame = None
         #: HOW FAR HER VIEW HAS SWUNG SINCE HER LAST LOOK, radians, in her own
         #: frame.  Her canals feel her head turn (`ragdoll.turned`) and her gaze
         #: order says where she asked her eyes to go; `orient.turned` puts the
-        #: two together, and `bind.swung` uses it to put last look's things
-        #: WHERE SHE MOVED THEM instead of where they were.
-        #:
-        #: **IT WAS HARDCODED TO ZERO.**  `bind.Seen.look` has taken a `swing`
-        #: since it was written and this file passed `(0.0, 0.0, 0.0)` --- so
-        #: nothing ever told her grouping that SHE was the one who moved.
-        #: `bind`'s own comment on what that costs: *"WHERE SHE LEFT THEM, NOT
-        #: WHERE THEY WERE ... without this, measured, a name survived 0 of 23
+        #: how far her view moved since her last look.
         #: look-to-look steps on her own retina."*  On her live body, measured
         #: 2026-08-26 before this line existed: **18.5%.**
         #:
@@ -409,8 +420,9 @@ class Her:
         self.swungSince = np.zeros(3, np.float32)
         self.wasGaze = (0.0, 0.0)
         #: what the last stage of a look handed on to the next
-        self.rows = None
         self.ears = np.zeros((2, SOUND_BANDS, SOUND_SLIDES), np.float32)
+        #: the last `LISTENS` of his air, from which each tick's piece is named
+        self._hisAir = np.zeros(0, np.float32)
         self.voiced = np.zeros(SOUND_BANDS, np.float32)
         #: WHAT KEEPS ARRIVING --- so the floor can name itself.
         #:
@@ -445,6 +457,7 @@ class Her:
         self.lookThread = None
         self.ticked = threading.Condition()
         self._lookJob = None
+        self._eyeBusy = False
         #: HOW FAR BEHIND HER OWN CLOCK SHE IS, in seconds.  Zero is keeping up.
         self.behind = 0.0
         #: WHAT THE PAGE READS.  Built once at the end of a tick and handed out
@@ -964,7 +977,8 @@ class Her:
         """His word cut into her frames --- AS HER EAR WILL NAME IT LIVE.
 
         IT USED TO RESAMPLE x1.75 FIRST, and that was the fork.  Her live ear
-        names 33 ms of arriving air RAW, at his own pitch: `window.speech` is a
+        names ONE TICK of arriving air RAW (11.1 ms), at his own pitch:
+        `window.speech` is a
         draining queue, so her ear cannot advance faster than he speaks.  A
         word captured here and shifted first was filed in a DIFFERENT index
         space from the one she hears him in --- measured 2026-08-31, not one id
@@ -986,47 +1000,6 @@ class Her:
         frames = wordFrames(pcm, speech.RATE)
         return frames or None
 
-    def _showCard(self, tick: int) -> None:
-        """ONE CARD AT A TIME on the training wall, and its name with it.
-
-        The picture is a flat colour with a shape in it, one per word --- a
-        nursery card, not a photograph, because what has to be learnable is
-        THIS LOOK GOES WITH THIS WORD.  Her retina is 512x512 and reads the
-        board as any other flat thing; nothing about the drawing is special.
-
-        Nothing here reaches her brain.  The board is a thing in her room, her
-        eye finds it or does not, and her MOTHER is the one who says the word
-        --- through `_looking`, exactly as she names the bed or the mirror.
-        """
-        if self.board is None:
-            return
-        if self.board.shows is not None and tick - self._cardAt < BOARD_TICKS:
-            return
-        self._card = (self._card + 1) % len(BOARD_CARDS) \
-            if self.board.shows is not None else 0
-        self._cardAt = tick
-        name = BOARD_CARDS[self._card]
-        self.board.name = name
-        h, w = 48, 64
-        px = np.zeros((h, w, 3), np.float32)
-        # one steady ground per word, and one shape on it --- two things that
-        # differ, so two cards can never be told apart by brightness alone
-        ground = np.array(CARD_COLOURS[name][0], np.float32)
-        mark = np.array(CARD_COLOURS[name][1], np.float32)
-        px[:, :] = ground
-        k = self._card % 5
-        if k == 0:
-            px[10:38, 12:30] = mark
-        elif k == 1:
-            px[6:20, 8:56] = mark
-        elif k == 2:
-            px[14:34, 22:42] = mark
-        elif k == 3:
-            px[8:40, 44:58] = mark
-        else:
-            px[20:28, 4:60] = mark
-        self.board.show(px)
-
     def _eyesAsHers(self) -> None:
         """A REFLEX IS HER WANTED OUTPUT --- his, 2026-09-06: *"you impact on her
         eyes directly instead of making it her wanted output, so after it her
@@ -1046,47 +1019,6 @@ class Her:
         for k, v in want.items():
             if k not in seen9:
                 out.motor.append(Motor(id=int(k), lvl=float(v)))
-
-    def _reflexEyes(self, her) -> None:
-        """THE BORN-IN SACCADE --- only into a silence she left.
-
-        Everything it uses was already written and measured: `salience_aim`
-        for what stands out (on the card, 3.65 ms), `what_to_hold` for WHICH
-        thing that is, `held_again` to keep it, and `follow` to point her eyes
-        at it.  What is new is only WHEN: never over her own order.
-
-        It writes `_eyeWant`, not `eye_at`, so what the reflex did reaches her
-        spindles as a pull of exactly the kind she orders herself --- she
-        cannot tell by the channel whether she or her body did it, which is
-        what a reflex feels like from the inside.
-        """
-        if self.picture is None or self.seen is None or not len(self.seen):
-            return
-        now = orient._lift(self.picture)
-        was = self._eyeWas
-        aim = orient.salience_aim(now[..., None],
-                                  None if was is None else was[..., None],
-                                  tuple(float(v) for v in self.swungSince))
-        self._eyeWas = now
-        if aim is None:
-            return                      # nothing stands out: no call at all
-        thing = bind.held_again(self._held, self.seen)
-        if thing is None:
-            thing = orient.what_to_hold(self.seen, aim)
-        self._held = thing
-        if thing is None:
-            return
-        at = (float(her.eye_at[0]), float(her.eye_at[1]))
-        want, _over = orient.follow(np.zeros(2, np.float32), (0, 2), at, thing)
-        pan = float(np.clip((float(want[0]) - 0.5) * 2.0, -1.0, 1.0))
-        tilt = float(np.clip((float(want[1]) - 0.5) * 2.0, -1.0, 1.0))
-        # back into the muscles that would make it: one of each pair pulls
-        self._eyeWant[0] = max(0.0, -pan)
-        self._eyeWant[1] = max(0.0, pan)
-        self._eyeWant[2] = max(0.0, -tilt)
-        self._eyeWant[3] = max(0.0, tilt)
-        self._eyesAsHers()
-        her.eye_at[0], her.eye_at[1] = pan, tilt
 
     def _looking(self):
         """What her gaze holds --- the room's own geometry, for the mom.
@@ -1120,7 +1052,7 @@ class Her:
             # front of her --- the pairing, made of two things she already has.
             cands.append((str(getattr(self.board, "name", "window")),
                           np.asarray(self.board.at, np.float32)))
-        for name, thing in self.room.things.items():
+        for name, thing in list(self.room.things.items()):   # see light._scene
             cands.append((name, np.asarray(thing.at, np.float32)))
         for name, at in cands:
             d = at - head
@@ -1173,14 +1105,8 @@ class Her:
         eye point, her joints, the swing since the last look (zeroed there).
         A first cut had this thread copy those itself right after a look
         tick --- and raced her reflex: the saccade ordered on that tick lands
-        on the next, so every other look was taken mid-jump, her binding lost
-        the things (looks alternating 3 and 10 things, 65% surviving) and a
-        newborn seeing "new things" five times a second closed 873 runs in
-        her first minute against 36 inline (measured 2026-09-03).
-
-        The render, the pieces and the binding run outside the lock; the
-        finished look is published under it in one step.  `bind.Seen` is
-        touched by this thread alone.
+        The render and the pieces run outside the lock; the finished look is
+        published under it in one step.
         """
         while self.going:
             with self.ticked:
@@ -1189,18 +1115,21 @@ class Her:
                 self._lookJob = None
             if job is None:
                 continue
+            self._eyeBusy = True
             n, eye, up, right, fwd, pos, radius, swung = job
             t9 = _perf()
             pic = light.see(self.room, [self.window, self.board],
                             [(eye, up, right, fwd)], body=(pos, radius))
             picture = np.asarray(light._home(pic))[:, :, 0].reshape(
                 light.RETINA_H, light.RETINA_W, light.CONES)
-            rows = np.asarray(parts.find(picture))
-            seen = np.asarray(self.eyes.look(rows, n, swung, picture,
-                                             self.wasFrame, self.olderFrame))
+            # GRAB THE SIMILARITY AND FORGET THE PICTURE.  Three numbers
+            # survive a look --- what it is, and where.  Nothing else of it is
+            # kept for her; `self.picture` is the page's mirror alone.
+            one = wholePicture(picture)
             with self.lock:
-                self.picture, self.rows, self.seen = picture, rows, seen
-                self.olderFrame, self.wasFrame = self.wasFrame, picture
+                self.picture = picture
+                self.onePicture = one
+            self._eyeBusy = False
             d = (_perf() - t9) * 1000.0
             was = self.stageMs.get("look-thread")
             self.stageMs["look-thread"] = d if was is None else was + (d - was) / 50.0
@@ -1309,7 +1238,6 @@ class Her:
         # in her output before she had asked the question, and her record then
         # showed a look she had not chosen.  The measurement stays; the hand
         # comes off.  She learns to look the way she learned to make a sound.
-        self._earTurn = (self._earTurn[0], max(0, self._earTurn[1] - 1))
         # WHAT THE PAIRS DISAGREE BY.  Both pulling equally is straight
         # ahead, exactly as it is in a real orbit.
         w = np.asarray(self._eyeWant, np.float32)
@@ -1328,7 +1256,6 @@ class Her:
         # at birth, and what develops over the first months is exactly the
         # ability to suppress and steer it.
         #
-        # NECESSARY IS HER OWN FLOOR, NOT A NEW CONSTANT.  `salience_aim`
         # returns nothing unless the peak of her own eye stands out from the
         # rest of it by `STRENGTH_FLOOR` --- so the reflex is silent in a
         # room where everything looks the same, and speaks when something
@@ -1345,9 +1272,6 @@ class Her:
         # pulls this replaced.  Her eye is asked when her LOOK is (5 a second,
         # `LOOKS_PER_SECOND`), which is her own seeing rate and not a new
         # number.
-        if (float(np.abs(w).max()) <= 0.0
-                and len(self.ticks) % self.looksEvery == 0):
-            self._reflexEyes(her)
         # ...AND WHAT HER EYES COULD NOT REACH, HER NECK CARRIES.  His own
         # words, 2026-08-15: *"you has to be the part of moving not part of
         # eyes, just simply correct input to eyes when you need it, rest would
@@ -1456,26 +1380,31 @@ class Her:
         # name says it is.
         sounding = []
         look9 = self._looking()
-        his = self.window.speech(self.earSeconds * REGISTER)   # the door takes 1.75 ticks of him a tick
+        # ONE TICK OF HIM A TICK.  He is already in her register when he reaches
+        # the queue (`window.say`), so the door takes exactly a tick's worth and
+        # his pace is his own.  (It took REGISTER ticks a tick and resampled
+        # them down --- his voice ran 1.75x fast through her.)
+        his = self.window.speech(self.earSeconds)
         self.teacher.hears(his, looking=look9)
-        # THE TELEVISION'S NOISE GATE --- the owner, 2026-08-29, after her
-        # babble bled through even his headphones into his microphone and
-        # came back to her as "him": *"her sounds reach mic. That's why we
-        # have this problem.  Try to solve it by different levels of
-        # sound."*  His real voice at the mic is loud; her leaked voice is
-        # quiet, so the level IS the split --- and it is the same bar the
-        # mom's word-capture already draws (`HIS_BAR`): too quiet to be a
-        # word is too quiet to be him at all.  This gate is the TV's, on his
-        # side of the glass; nothing in her brain switches on it.
-        if his is not None and float(np.abs(his).max()) > HIS_BAR:
+        # HER EAR LISTENS `LISTENS` BACK TO NAME THIS TICK'S PIECE (hearing.py):
+        # the last four ticks of his air, this tick's on the end; a tick with
+        # nothing arriving ages the old air out with silence, so a word ends.
+        piece9 = (np.asarray(his, np.float32).ravel() if his is not None
+                  else np.zeros(int(round(speech.RATE * TICK_SECONDS)), np.float32))
+        self._hisAir = np.concatenate([self._hisAir, piece9])[-int(round(speech.RATE * LISTENS)):]
+        # WHAT ARRIVES, ARRIVES.  Her ear has a line for how loud it was
+        # (`sound.lvl`), so quiet is a low level and not a thing anybody
+        # decides for her.  Her ear's own floor (`hearing.GATE`) is physical
+        # and stays; a second bar above it was the old design choosing what
+        # she is allowed to hear.
+        if his is not None or float(np.abs(self._hisAir).max()) > 0.0:
             sounding.append((self.window.at,
-                             door(his, speech.RATE, TICK_SECONDS,
+                             door(self._hisAir, speech.RATE, LISTENS,
                                   SOUND_HOPS)))
         # HER MOUTH PLAYS A RECORDED PIECE --- his decision, confirmed
         # 2026-08-30: *"we decide that we able record all needed sounds
         # that she need to produce all human letters and choose them by
         # ticks.  Everything pretty easy."*  The synthesizer's whole range
-        # was bell-tones; her sound units are real recorded pieces now,
         # and the palette grows only by his certified recordings.
         # HER OWN MOUTH SPEAKS --- his word, 2026-09-02, over the recorded
         # pieces: *"i need to make her more natural so recorderd sounds can
@@ -1495,11 +1424,9 @@ class Her:
         # don't need already prepared table or something like this.  So she would
         # produce any sounds.  Yes, it would take a long time.  I know it.  But it
         # would be natural."*  The branch that stood here let her ASK FOR A PIECE
-        # BY NAME and walked a recorded row of `voice.rows` --- her mind reaching
         # into a table of finished sounds instead of pushing the seven muscles it
         # has.  Measured here 2026-09-11: swept blind, those seven reach her own
         # alphabet at similarity 1.000, and two thirds of their range makes air.
-        # She can get there by pushing.  (`voice.rows` stays as the RULER her ear
         # measures every sound against, hers and his alike --- it is what a
         # similarity is similar TO.  Only the shortcut is gone.)
         made = np.asarray(self.voice.say(self._mouthWant[:, None]), np.float32)
@@ -1537,7 +1464,19 @@ class Her:
         # So her own air stops bypassing her head and goes where a real infant's
         # goes: into her ears, with everything else.  Kept here for the senses
         # stage below, which is where it is mixed in.
-        self._madeAir = made if sounded else None
+        # HER OWN AIR IS ALREADY HERS AND DOES NOT PASS THE DOOR.  His word,
+        # 2026-09-12: *"in case our ear broke our sounding ... we have to go not
+        # through the ear, we have to go directly to her sounding."*  The door
+        # brings the OUTSIDE into her register (pitch, formants and pace by
+        # REGISTER); her mouth already speaks there, so sending her own voice
+        # through it converts her twice and breaks the very sound she made.
+        # Both end up in the SAME space --- his by conversion, hers by birth ---
+        # which is what makes them comparable at all.
+        # ...and it reaches her ears whenever her ear has anything of hers in
+        # it --- including the tail of a sound she has just stopped making,
+        # which is still in the last `LISTENS` of her air, as his would be.
+        made9 = np.asarray(made, np.float32)
+        self._madeAir = made if (made9.size and float(made9.max()) > 0.0) else None
         tick.life.input.echo.id = SILENCE
         tick.life.input.echo.similarity = 0.0
         # THE ECHO IS A SPINDLE, NOT AN EAR --- the owner, 2026-08-29: *"That's
@@ -1692,17 +1631,24 @@ class Her:
                 self.her.carrying[k9] = False
                 self.her.carried[k9] = 0.0
         ears = self.ears = hear(sounding, her)
-        # ...AND WHAT SHE MADE ARRIVES AT THEM TOO.  Her mouth sits between her
-        # ears, so her own voice reaches both about alike --- which is itself the
-        # thing that tells one of hers from one of yours, without a word for it.
+        # ONE INPUT, AND EVERYTHING IS IN IT.  His word, 2026-09-12: *"she has
+        # to have just one input, her ears, and both our tracks --- every sound
+        # of that income gets similarity IDs, so even if we spoke together,
+        # anyway in one eleven millisecond we have ONE similarity ID for
+        # everything, and that is her level of sound."*
+        #
+        # So her own air arrives at her ears with everyone else's and mixes
+        # there.  Two voices at once are still one ID, because that is what the
+        # room sounded like.  Nothing separates hers from his --- what makes a
+        # sound hers is her own `loud` muscle standing in the same row a tick
+        # earlier, which she has without being told.
         air9 = getattr(self, "_madeAir", None)
-        if air9 is not None and getattr(air9, "size", 0):
+        if air9 is not None and getattr(air9, "size", 0) and air9.ndim > 1:
             n9 = min(ears.shape[1], air9.shape[0])
-            m9 = min(ears.shape[2], air9.shape[1]) if air9.ndim > 1 else 1
-            if air9.ndim > 1:
-                ears[0, :n9, :m9] += air9[:n9, :m9]
-                ears[1, :n9, :m9] += air9[:n9, :m9]
-            self._madeAir = None
+            m9 = min(ears.shape[2], air9.shape[1])
+            ears[0, :n9, :m9] += air9[:n9, :m9]
+            ears[1, :n9, :m9] += air9[:n9, :m9]
+        self._madeAir = None
         loudest = int(np.argmax([e.max() for e in ears]))
         arriving = ears[loudest]
         if arriving.max() > 0.0:
@@ -1711,7 +1657,7 @@ class Her:
             # it CHOSE, so the id and the level describe the same piece of
             # sound; the id came from a frame and the level from the whole
             # buffer, which are two different pieces whenever they disagree.
-            back, heard, alike = align(arriving, self.mouths, SOUND_SLIDES)
+            back, heard, alike = align(arriving, None, SOUND_SLIDES)
             at = max(0, arriving.shape[1] - 1 - int(back))
             # ...AND IF IT IS THE FLOOR, IT IS THE FLOOR.  His, 2026-08-26:
             # *"when we make her prelearn file it has to contain id 1 silent
@@ -1755,9 +1701,9 @@ class Her:
             else:
                 self.heardIds[SILENCE] = self.heardIds.get(SILENCE, 0) + 1
             tick.life.input.sound.id = heard
-            # HOW ALIKE IT WAS, NOT WHICH ONE IT WAS.  This line wrote the id
-            # cast to a float into the field named `similarity`, so her mind's
-            # only measure of a sound was a name wearing a number's clothes.
+            # The name as a level, 0..1.  Times `ALIKE_KINDS` it is a name her
+            # mouth can reach for again, which is how she says back what she
+            # heard.
             tick.life.input.sound.similarity = float(alike)
             tick.life.input.sound.lvl = float(arriving[:, at].max())
             tick.life.input.sound.balance = 1 if loudest else -1
@@ -1775,7 +1721,6 @@ class Her:
             # piece on 38 of 40, and the whole word 1.29 from his against
             # 3.47.
             # (her ear used to hand the frame to `Voice.heard` here so the
-            # clip player could pick WHICH recorded piece of that name to
             # play back; her mouth is her own since 2026-09-02 and nothing
             # plays a piece on the tick, so the feed is gone with it)
         else:
@@ -1785,9 +1730,12 @@ class Her:
             tick.life.input.sound.lvl = 0.0
 
         # A LOOK, ONE STAGE A TICK.  Her eye, then the surfaces in it, then
-        # what one thing IS --- 16.3, 25.0 and 22.6 ms, none of them over her
-        # 33 ms tick.  A look still lands every `looksEvery` ticks; what
-        # changed is that no single tick is ever over budget.
+        # what one thing IS --- 16.3, 25.0 and 22.6 ms measured on the host.
+        # EACH IS LONGER THAN HER 11.1 ms TICK, and that is exactly why a look
+        # is not taken in one: one stage lands per tick, a whole look every
+        # `looksEvery` ticks (18 of them, 5 looks a second), and her eye is on
+        # the GPU.  Measured at HEAD 2026-09-11: she feels a tick in 2.03 ms
+        # and `behind` is 0, which is the only proof that matters.
         self._lap("ear")
         # (no cards by the clock --- his rule, no automatic helpers; the board
         #  shows what the doctor shows through /show, 2026-09-06)
@@ -1805,7 +1753,6 @@ class Her:
                 #
                 # ONLY THE AXES ARE TAKEN.  `_glimpse` also returns her FACE as
                 # the eye point and this body has always rendered from `her.ear`,
-                # her head's centre, 19 cm behind it --- every number the binding
                 # check holds was measured there.  Moving her eye forward is a
                 # real question about her optics and it is HIS, asked on its own,
                 # with `measure.screen` run around it.  One change, not two.
@@ -1826,40 +1773,7 @@ class Her:
                 self.picture = np.asarray(light._home(pic))[:, :, 0].reshape(
                     light.RETINA_H, light.RETINA_W, light.CONES)
             elif stage == 1 and self.picture is not None:
-                self.rows = np.asarray(parts.find(self.picture))
-            elif stage == 2 and self.rows is not None:
-                self.seen = np.asarray(self.eyes.look(
-                    self.rows, len(self.ticks), tuple(float(v) for v in self.swungSince),
-                    self.picture, self.wasFrame, self.olderFrame))
-                # HER EYES GO TO WHAT STANDS OUT --- the born-in reflex, and it
-                # had no actuator at all until now.  `ragdoll.eye_at` was set to
-                # zeros at birth and NOTHING in the tree ever wrote it: two
-                # readers, no writer, so her eyes were welded straight ahead for
-                # every life she has lived.  Measured on the scale the same night:
-                # "knows papa on the TV --- faced the window 0%", "turns toward a
-                # voice --- 0 of 3 onsets", and habituation impossible because she
-                # cannot fade what she never faced.
-                #
-                # Everything it needs was already written and joined to nothing:
-                # `salience_aim` says WHAT stands out, `what_to_hold` turns that
-                # into WHICH thing (the joint between the two halves), `follow`
-                # points her eyes at it and hands back what they could not reach;
-                # NOTHING gives that leftover to her neck --- `turn_head` was built
-                # for it, never called, deleted 2026-09-03.  Nothing new
-                # decides anything here.
-                #
-                # It runs on a LOOK, not on a tick, and on the same three inputs
-                # binding just used --- the picture, the last look, and the swing
-                # since --- so the registration is not paid for twice and the two
-                # cannot drift apart.  Before the frames rotate, because `changed`
-                # is asked against the look she is comparing to.
-                # NOTHING MOVES HER EYES BUT HER.  `_aimEyes` used to run here
-                # and write `eye_at` by reflex; her eyes are muscles she commands
-                # now (its lean still fills her silence, `_reflexEyes`).  `orient`'s
-                # salience and holding stay written and unused until she has a
-                # reason to be OFFERED them --- as a weighted candidate her mind
-                # may take or refuse, which is his design and the next stone.
-                self.olderFrame, self.wasFrame = self.wasFrame, self.picture
+                self.onePicture = wholePicture(self.picture)
                 self.swungSince[:] = 0.0
             # SEEING NOTHING IS AN EMPTY LIST, NOT A THING WITH ID 1.  `Input.view`
             # defaults to `[View()]`, so on a tick where she saw nothing she
@@ -1872,7 +1786,15 @@ class Her:
             # glimpse returns: her face joint, her eyes.  (Until 2026-09-07 it
             # was `her.ear`, the centre of her head, and her own face joint sat
             # as a skin disc in the middle of every look --- his find.)
-            if len(self.ticks) % self.looksEvery == 0:
+            # HER EYE MUST IDLE, and that is what `looksEvery` is for.  Her
+            # eye thread holds the interpreter while it renders; an eye that
+            # takes a new look the moment it finishes never lets her HTTP
+            # thread answer, and her mind sits blocked on /ticks for ever.
+            # Measured 2026-09-11: free-running, a look went 50 -> 278 ms, her
+            # mind stopped reporting entirely, and `behind` read 0.0 only
+            # because nothing was left to be behind.  Her eye asks on her look
+            # rate and only when the last look is done.
+            if not self._eyeBusy and len(self.ticks) % self.looksEvery == 0:
                 eye, up, right, fwd = her._glimpse()
                 self._lookJob = (len(self.ticks),
                                  np.array(eye, np.float32, copy=True),
@@ -1881,56 +1803,11 @@ class Her:
                                  her.radius,
                                  tuple(float(v) for v in self.swungSince))
                 self.swungSince[:] = 0.0
-        tick.life.input.view = []
-        if len(self.seen):
-            # A THING IS WHAT IT LOOKS LIKE **AND WHERE IT IS**.  His, 2026-08-25:
-            # *"all objects depends where they are"* and *"and how big thaey
-            # are"*.  So where goes into WHICH LINE IT IS, and how big is the
-            # line's LEVEL --- which is the id-and-level shape every other line
-            # of hers already has, and needs nothing new in her brain.
-            #
-            # WITHOUT IT SHE WAS THROWING AWAY NINE THINGS IN TEN.  `levelsOf`
-            # keys a dict on the line's id, so seventy-odd things collapsed onto
-            # about eight lines and the survivor was WHICHEVER CAME LAST IN THE
-            # LIST --- not the biggest, not the nearest, nothing she could see.
-            #
-            # HOW COARSE, MEASURED over 40 of her looks at 72 things a look.  Two
-            # failures pull opposite ways: too coarse and two different things
-            # share a line; too fine and a thing sitting still jitters across a
-            # cell edge and is reborn under a new name every look, which is
-            # recognising nothing.
-            #
-            #     grid    lines a look   a line survives   things per line
-            #     1x1              7.7            97.0%               9.4  <- was
-            #     2x2             20.3            97.2%               3.6
-            #     4x4             40.7            94.7%               1.8
-            #     6x6             51.3            93.0%               1.4  <- here
-            #     8x8             59.9            91.8%               1.2
-            #     12x12           65.1            88.6%               1.1
-            #
-            # 6x6 is where a line is mostly ONE thing (1.4) while a line still
-            # survives to the next look 93 times in 100.  Past it, stability
-            # falls faster than merging improves.
-            #
-            # `distance` AND `z` ARE ON THE ROW AND NOTHING WRITES THEM.  His
-            # structure asks for them; her body cannot say them.  She has ONE
-            # eye and no rangefinder, so any number here would be computed for
-            # her rather than sensed by her --- rule 2, and the reason he cut
-            # both fields on 2026-08-25 in the first place.  They cost nothing
-            # while they sit: `levelsOf` spells a line from an id and a level,
-            # so neither is a line and neither is a permanent zero in a reason.
-            # The moment a sense produces depth, this is where it lands.
-            # THE SAME THING ELSEWHERE IS THE SAME ID.  Step 2 of his five,
-            # agreed 2026-08-27: the id used to weld WHAT a thing looks like
-            # to WHERE it sat (looks * grid + place), so the bottle at a new
-            # angle was a stranger and no exp could recognise the almost-
-            # same.  What a thing IS is its looks; where it is, the row
-            # already says in x and y.  Nothing is decoded brain-side ---
-            # the body simply stops packing two facts into one number.
-            tick.life.input.view = [
-                View(id=int(r[bind.LOOKS]),
-                     similarity=float(r[bind.AREA]),
-                     x=float(r[bind.X]), y=float(r[bind.Y])) for r in self.seen]
+        # WHAT SHE SEES, IN THREE LINES: what it is, and where.  Always
+        # present, so a line she can learn from never leaves her row.
+        lvl, px, py = getattr(self, "onePicture", (0.0, 0.0, 0.0))
+        tick.life.input.view = [View(id=0, similarity=float(lvl),
+                                     x=float(px), y=float(py))]
 
         self._lap("look")
         pulled, turning = self.balance.read(her)
@@ -1976,9 +1853,6 @@ class Her:
         # startles before a test even began and her head thrown 48 degrees
         # a tick.  A room's usual loudness is what it sounds like when it
         # is sounding.
-        if loud > 0.0:
-            self._earHeard += 1
-            self._earUsual += STARTLE_SETTLES * (loud - self._earUsual)
         # THE TURN TOWARD A SOUND --- his, 2026-09-06: *"rising has to trigger
         # her reflex."*  A newborn turns her eyes toward a sound that rises
         # above what she is used to, and turns less as it becomes usual.  The
@@ -1993,29 +1867,6 @@ class Her:
         # that follows is hers to keep.  General over every sound; names
         # nothing; her mind never sees it as a decision.  (Test 1 of the
         # doctor's, 2026-09-06, before it: no turn at the first chirp.)
-        if (loud > 0.0 and self._earHeard > STARTLE_WARM and self._earUsual > 0.0):
-            rise = loud / self._earUsual - 1.0
-            if rise > 0.0:
-                side9 = (float(lines[51]) - float(lines[50])) / loud
-                pan9 = float(np.clip(side9 * rise, -1.0, 1.0))
-                if self._earTurn[1] <= 0:
-                    self.turns += 1
-                self._earTurn = (pan9, STARTLE_TICKS)
-        if (loud > 0.0 and self._earHeard > STARTLE_WARM
-                and loud > self._earUsual * STARTLE_LOUD):
-            # WHICH WAY: the ear that got more of it.  Her two ears are
-            # physical levels, never a computed direction --- the difference
-            # IS the direction, and her head's own shadow made it.
-            # ...AND THE STARTLE IS GONE.  His word, 2026-09-10: *"and startle
-            # also remove, to do not store the garbage."*  It had already stopped
-            # moving any part of her --- the turn toward a sound took her eyes
-            # instead, and that turn is hers now too --- so all that was left was
-            # a count of a thing that no longer happened, kept on her page and in
-            # her tests as though it were a behaviour.  A loudness three times her
-            # usual is a rise on her ear lines like any other rise, and her ear
-            # lines are already in her row.  Nothing is named, nothing is counted,
-            # nothing is stored.
-            pass
         # WHAT IS AT HER LIPS.  It drains as she takes it --- her hormones
         # decide how much she draws, and this is only what is THERE.
         lines[MOUTH] = float(self.atMouth)
@@ -2029,32 +1880,12 @@ class Her:
         self._lap("senses")
         self.ticks.append(tick)
         now = tick.life.output
-        # ...AND WHAT IS NOT RE-COMMANDED FADES.  His pick, 2026-08-26,
-        # option 4 of the ways off the ice, by his own standing rule:
-        # "silence is her rest; loudness is PAID for, never patched in".
-        # Every carried level drops one body-step a tick toward rest, so
-        # holding anything is a choice she must keep making and keep
-        # paying for.  Before this, the ladder left all 26 muscles at
-        # 0.95 forever and she slid across the floor like a plank on
-        # ice, starving under the strain of her own held pose.
-        # ...BUT NOT HER EYES.  His word, 2026-09-11: *"remove that helper that
-        # moves her eyes to the center when she do not command, because it looks
-        # ugly, her eyes shaking every time, but it is absolutely unnecessary
-        # function."*  The fade is right for a limb --- a held pose is weight on
-        # a muscle and she should pay for it every tick --- and wrong for an eye:
-        # an eye that keeps looking somewhere costs nothing, and no real eye
-        # drifts back to centre when its owner stops thinking about it.  With
-        # the fade on them her gaze slid to straight-ahead in twenty ticks
-        # (1.0 / 0.05 = 0.222 s), the born-in saccade fires the instant all four
-        # reach exactly rest, and the two of them made the shake he is watching.
-        # Where she last looked is now where she is still looking.
-        step = float(self.resolution)
-        eyeLo, eyeHi = len(AXES) + 1, len(AXES) + EYES
-        now.motor = ([Motor(id=int(m.id),
-                            lvl=(float(m.lvl)
-                                 if eyeLo <= int(m.id) <= eyeHi
-                                 else max(0.0, float(m.lvl) - step)))
-                      for m in out.motor]
+        # A LINE SHE SET STAYS SET UNTIL SHE MOVES IT.  Her output carries
+        # forward, whole, and nothing puts it back.  That is what lets the next
+        # experience open where the last one closed: she sets one line, then
+        # another, and both are still there, so a chain of one-line trials
+        # builds a whole pose.
+        now.motor = ([Motor(id=int(m.id), lvl=float(m.lvl)) for m in out.motor]
                      or [Motor(id=k, lvl=0.0)
                          for k in range(1, max(1, int(self.motors)) + 1)])
         # A HELD POSE IS A THING SHE IS DOING; A SOUND IS A THING SHE
@@ -2180,12 +2011,7 @@ class Her:
                 # centre is -1..1 and its size is a FRACTION of the view ---
                 # two units in one row, `parts.find`'s own convention, settled
                 # 2026-08-15.  Half a box in pixels is `w * width * 0.5`.
-                "boxes": [{"id": int(r[bind.LOOKS]), "x": round(float(r[bind.X]), 4),
-                           "y": round(float(r[bind.Y]), 4),
-                           "w": round(float(r[3]), 4), "h": round(float(r[4]), 4),
-                           "pieces": int(r[bind.PIECES]),
-                           "seen": round(float(r[bind.SEEN]), 3)}
-                          for r in (self.seen if len(self.seen) else [])[:12]],
+                "boxes": [],
                 "ears": {"left": round(float(self.ears[0].max()), 4),
                          "right": round(float(self.ears[1].max()), 4),
                          "band": int(np.argmax(self.ears.max(axis=2).max(axis=0)))

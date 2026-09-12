@@ -39,13 +39,13 @@ from __future__ import annotations
 
 import numpy as np
 
-from .alike import SILENCE, _index_of, _unit
+from .alike import ALIKE_KINDS, SILENCE, _index_of, _unit, level_of
 
 
 def frames(heard: np.ndarray, slides: int):
     """EVERY PLACEMENT OF HER FRAME on an arriving sound, and how clean each is.
 
-    `(bands, n)` in; out is `(indices, wholeness)`, one entry per placement.
+    `(bands, n)` in; out is `(indices, wholeness, level)`, one per placement.
     A running mean, so his length costs nothing.
 
     **WHOLENESS IS FREE.**  Each slide is already a unit direction, so the norm
@@ -62,7 +62,7 @@ def frames(heard: np.ndarray, slides: int):
                           np.cumsum(np.asarray(unit, np.float64), axis=1)],
                          axis=1)
     block = (run[:, slides:] - run[:, :-slides]) / float(slides)
-    return _index_of(block.T), np.linalg.norm(block, axis=0)
+    return _index_of(block.T), np.linalg.norm(block, axis=0), level_of(block.T)
 
 
 def align(heard: np.ndarray, knows, slides: int) -> tuple:
@@ -87,37 +87,21 @@ def align(heard: np.ndarray, knows, slides: int) -> tuple:
     she heard something and it is not one of hers, which is the truth and is
     itself worth an experience.
     """
-    # ...AND HOW ALIKE IT WAS, WHICH IT USED TO THROW AWAY.  His, 2026-09-11:
-    # *"she has to convert by her ears all sounds to her voice resolution and
-    # store similarity lvl like view, and then this lvl she will compare with
-    # her already produced."*  `whole` is already that number and on the right
-    # scale --- 1.0 when the window holds ONE of her sounds, falling as it
-    # straddles two --- and this function computed it, ranked every placement by
-    # it, and returned only which one won.  Her body then wrote the WINNER'S ID
-    # into `sound.similarity` (`alive.py`, `float(heard)`), so the field that
-    # should say HOW ALIKE said WHICH ONE, and two sounds close in that number
-    # were not close in sound.  Now the number comes out.  A sound that is none
-    # of hers is alike by 0.0 --- she heard something and it is not one of hers,
-    # which is the truth and is the thing worth learning to say.
-    # NO RULER.  His word, 2026-09-11: *"we don't need any fucking ruler.  We
-    # have just voice record, which after preparing to her native voice, then cut
-    # it for eleven ms pieces of sound record.  And that's it."*
+    # THE NAME, AS A LEVEL.  The piece's own name divided by how many names
+    # there are: a level in 0..1 like every other line of hers, the same sound
+    # always the same level, and invertible --- a level times `ALIKE_KINDS` is a
+    # name her mouth can reach for, which is what lets her say it back.
     #
-    # The id ALWAYS came from the piece itself --- `_index_of` above reads the
-    # shape of the band block and nothing else.  What `knows` did was throw away
-    # every placement whose shape was not already in the bank of HIS recordings
-    # (`alive.py: self.mouths = self.voice.rows`), so a sound of the world was
-    # forced onto the nearest of 99 pieces cut from his voice, and anything else
-    # came back as similarity 0.0 and an id off the end.  That is the ruler, and
-    # it is why his 1.38-second word arrived at her as four ids repeating
-    # (measured 2026-09-11: 124 pieces, 28 distinct, mean alike 0.968 --- she was
-    # confidently naming a word she had already lost).
+    # The names are packed `1 + (centre*8 + spread)*8 + peak`
+    # (`alike._index_of`), so the leading digit of this level is the spectral
+    # centre and two sounds with the same centre land within an eighth of each
+    # other.  The ordering is the shape's.
     #
-    # Now the wholest placement wins on its own merit and the piece keeps its own
-    # name.  `knows` is left in the signature because her body still hands it in;
-    # nothing reads it, and her alphabet is whatever her life puts on the line.
-    got, whole = frames(heard, slides)
+    # NO RULER: the name comes from the piece itself.  `knows` is left in the
+    # signature because her body still hands it in; nothing reads it, and her
+    # alphabet is whatever her life puts on the line.
+    got, whole, lvl = frames(heard, slides)
     if not got.size:
         return 0, SILENCE, 0.0
     best = int(np.argmax(whole))
-    return got.size - 1 - best, int(got[best]), float(whole[best])
+    return got.size - 1 - best, int(got[best]), float(lvl[best])

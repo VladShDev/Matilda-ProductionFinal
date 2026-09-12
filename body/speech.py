@@ -166,7 +166,6 @@ NOSE_QUIET = 0.27
 #: BURST of the same turbulence out over BURST_S.  Vowels are untouched:
 #: with `hiss` and `close` at zero this path is exactly zero.
 #: MEASURED 2026-09-03, 36 constant sets x 350 random poses, named by her ear
-#: against the bank, scored by how many of his word's 18 sounds her mouth
 #: reaches (exact / one step away): the vowel-only mouth 3 / 9; this set
 #: 11 / 5, the best of the grid (0.03-0.10 gain and 600-1500 Hz all near it;
 #: a loud or very wide turbulence drowns the vowel and the alphabet SHRINKS
@@ -188,8 +187,25 @@ def _glottis(f0: np.ndarray, start: float = 0.0):
     machine.
     """
     phase = start + np.cumsum(np.asarray(f0, np.float64)) / RATE
-    # a sawtooth is a decent glottal pulse: all harmonics, falling with 1/f
-    return 2.0 * (phase - np.floor(phase + 0.5))
+    # VOCAL FOLDS AS FLOW, NOT A SAWTOOTH.  His word, 2026-09-12 ("maybe she
+    # just needs a more advanced synthesizer"), and measured the same day on
+    # her held vowel through her own lips: the sawtooth --- every harmonic at
+    # -6 dB an octave, then the lips' +6 --- came out FLAT, +4.0 dB of tilt
+    # where a voice is about -12: the harsh, bright "beast" he heard.  A
+    # glottal flow pulse (Rosenberg 1971: opening 40% of the period as a
+    # raised cosine, closing 16%, closed 44%) falls at -12 an octave, so after
+    # the lips she is -6.9; shimmer 7.6% -> 0.5%, jitter 0.80% -> 0.03%, and
+    # her memory stopped choosing an air row for his vowels four times in
+    # five (22% -> 5%).  Centred, so the closed phase is rest.  The lips
+    # (`np.diff` below) make the closure spike, which is the voice.
+    t = phase - np.floor(phase)
+    T1, T2 = 0.40, 0.16
+    g = np.zeros_like(t)
+    a = t < T1
+    g[a] = 0.5 * (1.0 - np.cos(np.pi * t[a] / T1))
+    b = (t >= T1) & (t < T1 + T2)
+    g[b] = np.cos(np.pi * (t[b] - T1) / (2.0 * T2))
+    return 2.0 * g - 1.0
 
 
 def _resonate(x: np.ndarray, freq: np.ndarray, wide: float,

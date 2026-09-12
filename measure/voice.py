@@ -62,9 +62,16 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from body import speech                                        # noqa: E402
 from body.alike import _unit                                    # noqa: E402
-from body.hearing import (SOUND_HOPS, TICK_SECONDS,             # noqa: E402
+from body.hearing import (REGISTER, SOUND_HOPS, TICK_SECONDS,             # noqa: E402
                           bands_from_pcm)
-from measure.mouth import _hers, _load, cut, pick               # noqa: E402
+def _load(path):
+    """One of his wavs, as her samples."""
+    import wave
+    with wave.open(path, "rb") as w:
+        y = np.frombuffer(w.readframes(w.getnframes()), "<i2").astype(np.float32) / 32768.0
+        if w.getnchannels() > 1:
+            y = y.reshape(-1, w.getnchannels()).mean(axis=1)
+    return y
 from body.hearing import toHer                                    # noqa: E402
 from body.hearing import SOUND_BANDS, SOUND_SLIDES                 # noqa: E402
 from body.muscles import FRONT_HZ, OPEN_HZ, PITCH_HZ, Voice        # noqa: E402
@@ -76,7 +83,7 @@ def herWord(name: str = "matilda", pitch: float = 250.0, scale: float = 1.3) -> 
     for the word, scaled to her tract, turned into her seven articulators a tick
     and spoken by `Voice.say`.  This is her voice; the bank playback below is
     the target her ear is cut on and has not been her voice since 2026-09-02."""
-    v = Voice(SOUND_BANDS, SOUND_SLIDES, bank="lives/mouth.npz")
+    v = Voice(SOUND_BANDS, SOUND_SLIDES)
     step = int(round(speech.RATE * TICK_SECONDS))
     table = speech.SOUNDS[name]
     speech.SOUNDS[name] = [(p[0], p[1] * scale, p[2] * scale, p[3] * scale, p[4], p[5]) + tuple(p[6:]) for p in table]
@@ -110,16 +117,30 @@ HIS = "measured/matilda_word_original.wav"        # the target: his raw word, th
 #: sound 105 of 120, ALIKE 0.998, rattle 2.067 against his own 3.1, length 1.000.
 #: His 2026-09-04 rendering stays in `measured/` beside this one; nothing was
 #: overwritten, and the two can be heard against each other whenever he wants.
-CERTIFIED = "measured/matilda_through_her_2026-09-11.wav"   # his ear's choice, re-locked on the glottal mouth
+#: RE-LOCKED 2026-09-12 ON HIS WORD ("Yes.  Do this.  I agree with implement"):
+#: her folds became a glottal flow pulse instead of a sawtooth, and her tract
+#: gained the back vowels (F2 down to 1,100 Hz, F3 riding with `front`).  The
+#: byte lock moved by construction (14,341 of 32,767); the floors that measure
+#: whether she still says HIS WORD held and improved: rattle 1.617 against
+#: 2.067 the day before (his own 5.0), length 0.572.  The 09-04 and 09-11
+#: renderings stay in `measured/` beside this one; all three can be heard
+#: against each other whenever he wants.
+CERTIFIED = "measured/matilda_through_her_2026-09-12.wav"   # his ear's choice, re-locked on the flow folds and the open tract
 
 #: THE FLOORS, measured 2026-08-31 (see the docstring).  A number here is a
 #: thing she DID, not a thing she should do.
-NAMED = 36
-RIGHT = 34
-ALIKE = 0.95
 #: how far above HIS OWN WORD IN HER REGISTER her seams may swing
 RATTLE = 1.5
-SHORT, LONG = 0.9, 1.15
+#: HER WORD AGAINST HIS, AND HERS IS SHORTER BY HER REGISTER.  This was
+#: 0.90..1.15 around 1.0 because it timed the BANK replaying his own recorded
+#: pieces --- his length by construction.  Her own mouth speaks in her
+#: register, where pitch, formants AND PACE rise together by REGISTER, so her
+#: word is 1/1.75 of his: measured 2026-09-12 at 0.572 against 0.571.
+#: ...and the number is HER MOUTH'S, not her ear's: it was briefly derived from
+#: REGISTER, which is her ear's business and is now 1.0.  Her word is shorter
+#: than his because her tract is shorter and her pitch is higher --- measured
+#: 2026-09-12 at 0.572 --- and that holds however the world reaches her.
+SHORT, LONG = 0.50, 0.66
 
 
 def shapeOf(pcm) -> np.ndarray | None:
@@ -158,36 +179,9 @@ def rattleOf(pcm, at: float = 1.0 / TICK_SECONDS, wide: float = 5.0) -> float:
 def main() -> int:
     here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     os.chdir(here)
-    pieces, rows, ears = cut()
     word = _load(HIS)
     step = int(round(speech.RATE * TICK_SECONDS))
-    grab = int(round(step * 1.75))
 
-    named, alike = 0, []
-    out = np.zeros((len(word) // step) * step, np.float32)
-    ramp = int(round(speech.RATE * 0.002))
-    last = np.float32(0.0)
-    for k in range(len(word) // step):
-        frame = word[k * step:(k + 1) * step]
-        _, one = pick(rows, ears, frame)
-        ch = np.zeros(step, np.float32)
-        if one is not None:
-            named += 1
-            ch = pieces[one].copy()
-            # THE PIECE AGAINST THE MOMENT IT STANDS FOR: his sound there,
-            # in her register, against the sound she actually plays
-            want = shapeOf(_hers(word[k * step:k * step + grab], step))
-            got = shapeOf(pieces[one])
-            if want is not None and got is not None:
-                alike.append(float(np.dot(want, got)))
-        up = np.linspace(0.0, 1.0, ramp, dtype=np.float32)
-        ch[:ramp] = ch[:ramp] * up + last * (1.0 - up)
-        last = ch[-1]
-        out[k * step:(k + 1) * step] = ch
-
-    right = int(sum(1 for v in alike if v > 0.9))
-    mid = float(np.median(alike)) if alike else 0.0
-    playback = rattleOf(out)          # the bank's seams: reported, not a bar (retired mouth)
     # THE VOICE IS LOCKED (his word, 2026-09-04: "lock it forever, one really
     # working part"): his word through her own mouth must stay what his ear
     # certified, sample for sample.  A change anywhere in her mouth --- the
@@ -203,15 +197,10 @@ def main() -> int:
     #: HIS OWN WORD, THROUGH THE SAME FUNCTION, THIS RUN --- the bar moves
     #: with his file instead of with a constant somebody typed
     was = rattleOf(toHer(_load(HIS)))
-    ratio = (len(out) / float(speech.RATE)) / (len(word) / float(speech.RATE))
-    ticks = len(word) // step
+    ratio = (len(herWord()) / float(speech.RATE)) / (len(word) / float(speech.RATE))
 
-    print("HIS WORD THROUGH HER MOUTH --- %d pieces in %d names"
-          % (len(pieces), len(rows)))
+    print("HIS WORD THROUGH HER MOUTH")
     rows9 = [
-        ("named", named, ticks, named >= NAMED, "at least %d" % NAMED),
-        ("right sound", right, len(alike), right >= RIGHT, "at least %d" % RIGHT),
-        ("how alike", mid, 1.0, mid >= ALIKE, "at least %.2f" % ALIKE),
         ("rattle %", swing, 100.0, swing <= was + RATTLE,
          "his %.1f, at most %.1f" % (was, was + RATTLE)),
         ("length x", ratio, 1.0, SHORT <= ratio <= LONG,

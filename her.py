@@ -59,7 +59,6 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 #: It was `../matilda4`, a sibling folder, which meant she could only be
 #: started from a tree that had one beside it.
 MIND = os.path.abspath(os.path.join(HERE, "mind"))
-MOUTH = os.path.join(HERE, "lives", "mouth.npz")
 #: NO BASE TAPE, NO GUIDE (his, 2026-09-06, on the bootstrap of 2026-09-04: a
 #: helper, "a wrong brick at the base"): every life starts from nothing but
 #: her body and her mother, or continues one with --keep.
@@ -201,10 +200,6 @@ def main() -> int:
     os.chdir(HERE)
     at = "http://127.0.0.1:%d" % got.port
 
-    if not os.path.exists(MOUTH):
-        say("her mouth is not cut yet --- cutting it from his certified words")
-        subprocess.run([sys.executable, "-m", "measure.mouth"], cwd=HERE,
-                       env=dict(os.environ, CUDA_VISIBLE_DEVICES=""))
     say("checking her voice")
     if not check() and not got.no_check:
         say("\nHER VOICE IS BROKEN AND SHE IS NOT STARTED.  Restore it:")
