@@ -70,8 +70,30 @@ _RET_X = np.tile(np.linspace(-1.0, 1.0, light.RETINA_W, dtype=np.float32), light
 _RET_Y = np.repeat(np.linspace(-1.0, 1.0, light.RETINA_H, dtype=np.float32), light.RETINA_W)
 
 
+#: HER WHOLE PICTURE'S SHAPE, IN TEN LEVELS.  His word, 2026-09-12: the one
+#: gray number read the same at every wall --- ceiling, floor, left, right,
+#: 292 of 512 each ("she is blind") --- and *"add 5-10 lines of levels to
+#: describe the whole picture."*  What her ear does for air (raw -> 24 band
+#: levels) her eye does for the picture (raw -> these ten): its brightness,
+#: its warmth (red share), and the eight coarsest patterns of light across it
+#: --- left/right, up/down, centre/edge, the diagonals: a 3x3 DCT block of the
+#: brightness without its mean --- each a level in 0..1 where 0.5 is flat.
+#: No model, no names, no cut: a fixed transform of her own retina.
+#: Measured 2026-09-12 on her real room: six directions differ on 8-10 of the
+#: ten lines (before: 0 of 1); a thing 4% of her field moves 7 of them and
+#: its motion moves 7; the same view twice moves 0.  A pattern is measured
+#: against a quarter of the picture's whole spread (the squares of a
+#: standardised CxC picture sum to C^2), so a pattern holding a sixteenth of
+#: it reads 0.5 +- 0.38: the one compression here, and his to set.
+_PIC_CELLS = 32
+_k9 = np.arange(_PIC_CELLS)
+_DCT = (np.cos(np.pi * (2 * _k9[:, None] + 1) * _k9[None, :] / (2 * _PIC_CELLS))
+        * np.sqrt(2.0 / _PIC_CELLS)).astype(np.float32)
+_DCT[0] *= 1.0 / np.sqrt(2.0)
+
+
 def wholePicture(picture) -> tuple:
-    """HER WHOLE PICTURE AS ONE THING --- `(level, x, y)`.
+    """HER WHOLE PICTURE AS ONE THING --- `(level, x, y)` and its TEN LEVELS.
 
     His word, 2026-09-11: *"she sees picture, that picture all has to has ONE
     similarity id, and when all picture moves those directions has to be x and
@@ -90,20 +112,31 @@ def wholePicture(picture) -> tuple:
     """
     pic = np.asarray(picture, np.float32)
     if pic.ndim != 3 or not pic.size:
-        return 0.0, 0.0, 0.0
+        return (0.0, 0.0, 0.0, 0.0, 0.0) + (0.5,) * 8
     flat = pic.reshape(-1, pic.shape[-1])
     bright = flat.sum(axis=1)
     total = float(bright.sum())
     if total <= 0.0:
-        return 0.0, 0.0, 0.0
+        return (0.0, 0.0, 0.0, 0.0, 0.0) + (0.5,) * 8
     row = np.zeros((1, parts.COLUMNS), np.float32)
     row[0, 3] = row[0, 4] = 1.0
     row[0, parts.COLOUR] = flat.mean(axis=0)
     name = int(parts._alike(row)[0])
     n = min(bright.size, _RET_X.size)
+    # ...AND THE WHOLE PICTURE IN TEN LEVELS (see `_DCT` above): brightness,
+    # warmth, and the eight coarsest patterns of its light.
+    g = pic.sum(axis=2)
+    c = _PIC_CELLS
+    h9, w9 = (g.shape[0] // c) * c, (g.shape[1] // c) * c
+    g = g[:h9, :w9].reshape(c, h9 // c, c, w9 // c).mean(axis=(1, 3))
+    d = _DCT @ ((g - g.mean()) / (float(g.std()) or 1.0)) @ _DCT.T
+    shape = [d[i, j] for i in range(3) for j in range(3) if (i, j) != (0, 0)]
+    ten = ([min(1.0, float(g.mean()) / float(pic.shape[-1])),
+            float(flat[:, 0].sum()) / total]
+           + [0.5 + 0.5 * float(np.tanh(v / (c / 4.0))) for v in shape])
     return (float(name) / float(ALIKE_KINDS),
             float(np.dot(_RET_X[:n], bright[:n]) / total),
-            float(np.dot(_RET_Y[:n], bright[:n]) / total))
+            float(np.dot(_RET_Y[:n], bright[:n]) / total)) + tuple(ten)
 
 
 #: THE PICTURE BOARD --- WHERE SHE ACTUALLY LOOKS, which is not where the
@@ -1815,9 +1848,14 @@ class Her:
                 self.swungSince[:] = 0.0
         # WHAT SHE SEES, IN THREE LINES: what it is, and where.  Always
         # present, so a line she can learn from never leaves her row.
-        lvl, px, py = getattr(self, "onePicture", (0.0, 0.0, 0.0))
-        tick.life.input.view = [View(id=0, similarity=float(lvl),
-                                     x=float(px), y=float(py))]
+        one = getattr(self, "onePicture", None) or (0.0, 0.0, 0.0)
+        lvl, px, py = one[0], one[1], one[2]
+        # ...and the picture's ten levels ride as rows 1..10 of the same list
+        # (his word, 2026-09-12) --- slots, like her sensors; nothing named.
+        tick.life.input.view = ([View(id=0, similarity=float(lvl),
+                                      x=float(px), y=float(py))]
+                                + [View(id=k, similarity=float(v))
+                                   for k, v in enumerate(one[3:], 1)])
 
         self._lap("look")
         pulled, turning = self.balance.read(her)

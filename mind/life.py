@@ -106,6 +106,11 @@ def lines(life) -> dict:
     out[(VIEW, 0)] = float(v.similarity) if v is not None else 0.0
     out[(VIEW, 1)] = float(getattr(v, "x", 0.0)) if v is not None else 0.0
     out[(VIEW, 2)] = float(getattr(v, "y", 0.0)) if v is not None else 0.0
+    # ...AND THE WHOLE PICTURE'S TEN LEVELS, rows 1..10 of her view (his word,
+    # 2026-09-12): brightness, warmth, the eight coarsest patterns of its
+    # light.  More lines, no names --- read as any sensor is read.
+    for w in (i.view[1:] if i.view else ()):
+        out[(VIEW, 2 + int(w.id))] = float(w.similarity)
     for m in life.output.motor:
         out[("motor", int(m.id))] = float(m.lvl)
     return out

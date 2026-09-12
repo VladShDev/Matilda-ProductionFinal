@@ -4599,7 +4599,7 @@ fetch('/meta',{cache:'no-store'}).then(function(r){ return r.json(); }).then(fun
       /* RESERVED HEIGHT, so a name arriving cannot push the picture up.  Three
          lines is what the longest reading needs at this width: tick, things,
          biggest, exposure, and however many the ruler found. */
-      '<div id="eyeInfo" style="margin-top:6px;opacity:.75;min-height:4.2em;' +
+      '<div id="eyeInfo" style="margin-top:6px;opacity:.75;min-height:4.2em;white-space:pre-line;' +
       'overflow-wrap:anywhere">…</div>' +
       /* HER OTHER SENSE, under the one she is usually looked at through.  Her
          ears have been on the wire since `sandbox._heard` existed and nothing
@@ -4734,9 +4734,14 @@ fetch('/meta',{cache:'no-store'}).then(function(r){ return r.json(); }).then(fun
      picture is, as a level, and where it is --- so the panel shows those three
      and explains nothing. */
   var vw = d.view || [0, 0, 0];
+  var ten = vw.length > 3
+    ? '
+bright ' + vw[3].toFixed(2) + '  warm ' + vw[4].toFixed(2) +
+      '  shape ' + vw.slice(5).map(function (x) { return x.toFixed(2); }).join(' ')
+    : '';
   box.querySelector('#eyeInfo').textContent =
     'similarity ' + Math.round(vw[0] * 512) + '   ' + vw[0].toFixed(4) +
-    '    x ' + vw[1].toFixed(3) + '   y ' + vw[2].toFixed(3);
+    '    x ' + vw[1].toFixed(3) + '   y ' + vw[2].toFixed(3) + ten;
   }
 
   /* WHAT REACHED EACH EAR, one bar a band, left over right.
