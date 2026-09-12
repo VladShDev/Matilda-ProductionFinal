@@ -307,8 +307,17 @@ her.py                    one command
 ```
 
 `mind/` is six files: `life`, `hormones`, `discover`, `store`, `structure`,
-`sandbox`. `mind/life.py` is 492 lines and holds the twenty points above and
-nothing else.
+`sandbox`. `mind/life.py` holds the twenty points above and nothing else.
+
+**Instruments, testing only** (`measure/`; she never imports them):
+`alphabet` --- her possibilities, swept by her own law with one carried mouth;
+`saidback` --- her memory said back through her own mouth, judged by praat;
+`hervoice` --- HIS WORDS IN HER VOICE, the path he chose 2026-09-12 (his air ->
+her ear's 24 levels a piece -> her own mouth with three lines following his
+voicing and pitch -> his envelope on a small child's tract, `--tract 1.5`).
+Every knob is at the top of that file with what it does; change it there and
+nothing else moves. It is the measure of what her memory would give if a sound
+reached it as her ear's levels instead of one number.
 
 The record is DuckDB in `mind/lives/`: every tick of her life, written as a
 start point and then changes. Her page writes its own exceptions and its heap
