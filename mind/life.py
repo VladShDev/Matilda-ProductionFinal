@@ -92,10 +92,16 @@ def lines(life) -> dict:
     out = {("sensor", int(s.id)): float(s.lvl) for s in i.sensor}
     for s in i.spindle:
         out[("spindle", int(s.id))] = float(s.lvl)
-    # A SOUND IS ITS LEVEL, HOW LOUD, AND WHICH SIDE.
+    # A SOUND IS ITS LEVEL AND HOW LOUD --- and WHICH SIDE is already on her row
+    # in her two ears (sensors 50, 51).  His word, 2026-09-12: *"why do we need
+    # balance if we already have two channels for her ears?"*  Balance was
+    # left-minus-right with the sign kept and the size thrown away; her two ear
+    # levels carry both which side and by how much, so it was a fifth number
+    # saying less than the two she already had.  Her body still computes
+    # `sound.balance` (the struct and the record keep it, so old lives read);
+    # her mind simply no longer reads it as a line.
     out[(HEARD, 0)] = float(getattr(i.sound, "similarity", 0.0) or 0.0)
     out[(HEARD, 1)] = float(i.sound.lvl)
-    out[(HEARD, 2)] = float(getattr(i.sound, "balance", 0) or 0)
     v = i.view[0] if i.view else None
     out[(VIEW, 0)] = float(v.similarity) if v is not None else 0.0
     out[(VIEW, 1)] = float(getattr(v, "x", 0.0)) if v is not None else 0.0
