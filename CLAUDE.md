@@ -170,24 +170,31 @@ like. There is no echo channel and no ruler.
 
 ### What she can tell apart
 
-**HER GRAIN IS HER SHARPEST SENSE, NEVER HER BLUNTEST PART.** `resolution` is
-what she can **sense** --- `1 / ALIKE_KINDS`, her ear's own step, because her ear
-names 512 sounds and puts the name on her row as a level in 0..1. What she can
-**push** is separate and coarser: `muscleStep`, her flesh's smallest move.
+**HER GRAIN IS HER MIND'S ONE ANSWER TO "DID ANYTHING CHANGE?"** --- and his
+word for it, 2026-09-12, is **0.01** (`self.resolution` in `body/alive.py`,
+served to her mind). Her mind uses it on every line for four things: a value a
+line has never shown (novelty), a change worth keeping in an experience, the
+rise that closes one, and the step her record is written at (`store._q`).
 
-One number served both until 2026-09-12, and it was the muscle one. Her mind
-used it for what counts as a change, what an experience keeps, and the grain her
-memory is written at (`store._q`), so **512 sounds collapsed into 21 buckets**:
-her ear gave 98 distinct levels of his voice live and her record kept 13. Two
-sounds three names apart differ by 3/512 = 0.006, far under 0.05, so she could
-not tell them apart anywhere --- not in her memory, not in an experience, not in
-closeness. She could not have learned to speak; there was nothing to learn from.
+It is **not** the step her muscles move by. A trial moves by her deficit,
+`max(resolution, (1 - state) / 2)` in `discover.py`, normally 0.05 to 0.5 --- so
+her smoothness is her body's, and this number almost never touches it.
 
-Fixed, the same minute of his voice: **13 -> 108 distinct sounds**, and 87% of her
-memory comes back wearing its own name (`measure.saidback`).
+Measured on her own state, tick to tick, 2026-09-12:
 
-**Any line she senses finer than her muscles move needs her sense's grain, not
-her flesh's.** If a new sense arrives, this is the question to ask about it first.
+- at **1/512** (0.002 --- the count of the *old* ear names, which no longer
+  exist; her similarity is a continuous level now) half of all her ticks read
+  as a change, an experience closed every ~100 ms, and her mind felt only
+  68-76 of her 90 ticks a second: her state's own wobble was being read as
+  news.
+- at **0.05**, her muscle's step, one tick in 140 read as a change, and his
+  speech (levels 0.12-0.87) held only ~15 distinguishable sounds.
+- at **0.01** (his word), one tick in 22, ~75 distinguishable sounds, and her
+  mind felt 85-86 of 90. Two sounds closer than 0.01 in level are one sound to
+  her.
+
+**A number that serves her mind's sense of change is hers to set by how her
+state actually behaves, not by how finely her ear or her muscles move.**
 
 ### What moves her
 

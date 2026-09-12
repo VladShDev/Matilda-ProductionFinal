@@ -192,7 +192,12 @@ class Life:
         """A life continued: what every line has shown her, and the two states
         of every experience she has closed.  Nothing is left behind --- a start
         and a difference are what a memory is, and both are kept."""
-        packed = (self.store.hands() or {}).get("his") or {}
+        # `hands()` is None on a life from before checkpoints, else the tuple
+        # (age, time, packed) --- the dict is its third element.  Reading `.get`
+        # straight off the tuple crashed every `--keep` wake of a life that had
+        # a checkpoint (a fresh birth got None and was fine, so it hid).
+        got = self.store.hands()
+        packed = (got[2] if got else {}).get("his") or {}
         self.seen = {_unkey(k): set(v) for k, v in (packed.get("seen") or {}).items()}
         self.usual = {_unkey(k): float(v) for k, v in (packed.get("usual") or {}).items()}
         for k, lv in (packed.get("starts") or {}).items():
