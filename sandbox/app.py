@@ -630,7 +630,17 @@ class Watched(Her):
                       # voiced an hour earlier.  Silent commands are hers.
                       "mine": (int(life.input.echo.id)
                                == int(life.output.sound.id)
-                               or float(life.output.sound.lvl) <= 0.0)},
+                               or float(life.output.sound.lvl) <= 0.0),
+                      # HER JAW, so the drawn mouth is her own.  His word,
+                      # 2026-09-12: her page-mouth hung open always because it
+                      # was drawn from loudness alone.  `open` (VOICE_PARTS[2])
+                      # raises her jaw, `close` (VOICE_PARTS[5]) pinches it
+                      # shut --- her own two mouth muscles, as she commands
+                      # them, so a shut mouth reads shut and an open one open.
+                      "open": round(float(getattr(HER, "_mouthWant",
+                                                  [0.0] * 7)[2]), 4),
+                      "close": round(float(getattr(HER, "_mouthWant",
+                                                   [0.0] * 7)[5]), 4)},
             # THE STRONGEST MUSCLE SHE IS HOLDING, or 0 at rest.  `motor` is
             # every muscle now (his "all muscles all inputs"); one id kept the
             # panel's shape --- and reading `.id` off the list killed the live

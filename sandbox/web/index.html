@@ -2669,19 +2669,19 @@ function paint(p){
     drawFlat(SPHERE,new Float32Array([eyeR,0,0,0, 0,eyeY,0,0, 0,0,eyeR,0,
                                       e.x,e.y,e.z,1]),OUTLINE,false);
   });
-  // HER MOUTH OPENS WHEN SHE SOUNDS.  This read `STATE.voice` as a number and
-  // it has been an object since her voice panel was built --- object times a
-  // number is NaN, so her mouth's height was NaN and she has had no readable
-  // mouth on this page since.  `loud` is how loud she is this tick.
-  // WHAT CAME OUT, not what she asked for.  `loud` is the sound she
-  // COMMANDED, which is zero on every tick she makes a sound with her
-  // seven articulators instead of by name --- which is most of them.
-  // `back` is her own voice arriving at her own ears, so it is true
-  // whenever she is actually sounding, however she made it.
+  // HER MOUTH SHOWS HER OWN JAW.  His word, 2026-09-12: it hung open always
+  // because it was drawn from loudness with a fat base, so it never shut and
+  // never told you what her mouth was doing.  Now it is her two mouth muscles:
+  // `open` (her jaw down) opens it, `close` (her tract pinched) shuts it ---
+  // so you can SEE her trying to shape a sound, or holding her mouth closed.
+  // Her loudness still nudges it a little, so a real cry gapes wider.
   var vv=STATE.voice||{};
+  var vop=typeof vv.open==='number'?vv.open:0,
+      vcl=typeof vv.close==='number'?vv.close:0;
   var vloud=Math.max(typeof vv.back==='number'?vv.back:0,
                      typeof vv.loud==='number'?vv.loud:0);
-  var mo=(0.068+vloud*0.341)*HR,
+  var openness=Math.max(0,vop*(1-vcl));
+  var mo=(0.012+openness*0.40+vloud*0.10)*HR,
       moX=0.227*HR, moZ=0.159*HR, mout=FACE_OUT*HR;
   var mp=add(add(head,mul(fwd,0.899*mout)),mul(up,-0.437*mout));
   drawFlat(SPHERE,new Float32Array([moX,0,0,0, 0,mo,0,0, 0,0,moZ,0,
