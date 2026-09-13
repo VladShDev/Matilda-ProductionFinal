@@ -343,15 +343,26 @@ class Teacher:
         # channel: the running least of its loudness (falls at once, climbs a
         # hair a tick), and a tick under twice that floor is quiet.  The 2 is
         # the one number here; his to set.
-        floor = min(loud, float(getattr(self, "_hisFloor", loud)) + 0.001)
+        floor = min(loud, float(getattr(self, "_hisFloor", GATE)) + 0.001)   # starts at her gate, never at his first word
         self._hisFloor = floor
+        # ...and she listens for one second before she keeps anything: the
+        # floor of a room she has just entered is not known yet, and the first
+        # second of its noise was landing as a word.
+        self._hisTicks = int(getattr(self, "_hisTicks", 0)) + 1
+        if self._hisTicks <= HIS_GAP * 3:
+            return
         if loud > max(GATE, 2.0 * floor):
             self._his.append(np.asarray(pcm, np.float32).copy())
             self._hisQuiet = 0
             return
         if not self._his:
             return
-        self._his.append(np.asarray(pcm, np.float32).copy())
+        # A TICK WITH NO CHUNK FROM HIM IS QUIET AIR ONE TICK LONG --- never a
+        # 0-d array: `len()` of one killed her tick thread the moment the page
+        # opened its mic (his traceback, 2026-09-13 15:07).
+        self._his.append(np.asarray(pcm, np.float32).copy()
+                         if (pcm is not None and np.ndim(pcm) >= 1 and len(pcm))
+                         else np.zeros(TICK_SAMPLES, np.float32))
         self._hisQuiet += 1
         if self._hisQuiet <= HIS_GAP:
             # ...AND A WORD HAS AN END EVEN IF THE ROOM NEVER GOES QUIET: a
