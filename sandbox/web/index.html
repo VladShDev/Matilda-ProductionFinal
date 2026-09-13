@@ -1718,7 +1718,7 @@ var HEAD_BOOST=1.25, SUIT_CHEST=1.25, SUIT_HIPS=1.20;
 // EYE_R does not move: 0.284 of the drawn radius is 1.95 cm across and a
 // newborn's eye opening is 1.9 cm. The eye was the right size in the wrong
 // place.
-var FACE_OUT=1.00, EYE_R=0.142;
+var EYE_R=0.142;
 // HOW BIG SHE IS AT A JOINT, ON SCREEN --- the one answer, so that anything
 // which has to sit ON her asks this and never `META.radius`. Three joints are
 // drawn to a scale and the other sixteen are drawn raw, and every place that
@@ -2683,15 +2683,28 @@ function paint(p){
   // A DIRECTION AND A DISTANCE, not three numbers that hide one. Where on the
   // skull an eye sits and how far out it sits are different questions, and the
   // second one is the only thing anybody has ever needed to tune --- see
-  // `FACE_OUT` by `HEAD_BOOST`.
+  // how far out: the skull's own radius plus a hair (`lift9`, below).
   var shut=blink(performance.now()/1000),
-      eyeY=EYE_R*HR*(1-0.88*shut), eyeR=EYE_R*HR, out=FACE_OUT*HR;
+      eyeY=EYE_R*HR*(1-0.88*shut), eyeR=EYE_R*HR;
+  // ON THE SKULL, WHATEVER SHE LOOKS AT.  His word, 2026-09-13: her eyes sank
+  // into her head and her mouth was swallowed by it.  Two causes: the eye's
+  // offset grew and shrank with her gaze (gsx, gsy), so its centre left the
+  // sphere; and eye and mouth were scaled along the WORLD's axes, so with her
+  // head turned or on her back the skull's own curve cut through them.  Now
+  // each feature is a DIRECTION from the head's centre, normalised and placed
+  // at the skull's radius (a gaze turns the eye AROUND the head), and each is
+  // built in the head's own frame --- across, up-on-skin, out --- and lifted
+  // a hair off the skin.  The fractions are the same face as before.
+  var f9=norm(fwd), r9=norm(right), u9=norm(up), lift9=0.03*HR;
+  function onSkull(dir, sx, sy, sz){
+    var n=norm(dir), a=norm(cross(u9,n)), b=cross(n,a);
+    var c=add(head, mul(n, HR+lift9));
+    return new Float32Array([a.x*sx,a.y*sx,a.z*sx,0, b.x*sy,b.y*sy,b.z*sy,0,
+                             n.x*sz,n.y*sz,n.z*sz,0, c.x,c.y,c.z,1]);
+  }
   [-1,1].forEach(function(s){
-    var e=add(add(head,mul(fwd,0.885*out)),
-              add(mul(right,0.430*out*s+0.34*out*gsx),
-                  mul(up,0.177*out+0.34*out*gsy)));
-    drawFlat(SPHERE,new Float32Array([eyeR,0,0,0, 0,eyeY,0,0, 0,0,eyeR,0,
-                                      e.x,e.y,e.z,1]),OUTLINE,false);
+    var d=add(add(mul(f9,0.885), mul(r9,0.430*s+0.34*gsx)), mul(u9,0.177+0.34*gsy));
+    drawFlat(SPHERE,onSkull(d, eyeR, eyeY, eyeR),OUTLINE,false);
   });
   // HER MOUTH SHOWS HER OWN JAW.  His word, 2026-09-12: it hung open always
   // because it was drawn from loudness with a fat base, so it never shut and
@@ -2706,10 +2719,10 @@ function paint(p){
                      typeof vv.loud==='number'?vv.loud:0);
   var openness=Math.max(0,vop*(1-vcl));
   var mo=(0.012+openness*0.40+vloud*0.10)*HR,
-      moX=0.227*HR, moZ=0.159*HR, mout=FACE_OUT*HR;
-  var mp=add(add(head,mul(fwd,0.899*mout)),mul(up,-0.437*mout));
-  drawFlat(SPHERE,new Float32Array([moX,0,0,0, 0,mo,0,0, 0,0,moZ,0,
-                                    mp.x,mp.y,mp.z,1]),OUTLINE,false);
+      moX=0.227*HR, moZ=0.159*HR;
+  // ...and the mouth the same way: across her face, open along her skin's up,
+  // its depth out along the skull's normal --- never along the world's Z.
+  drawFlat(SPHERE,onSkull(add(mul(f9,0.899), mul(u9,-0.437)), moX, mo, moZ),OUTLINE,false);
 
   // YOU: the window flying in her room. Its position came down the same wire as
   // her joints, computed by the app on the same clock — so what she can see of
