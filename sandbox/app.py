@@ -49,7 +49,7 @@ sys.path.insert(0, str(HERE))
 
 import film                                                        # noqa: E402
 from body import speech                                            # noqa: E402
-from body.room import BED                                          # noqa: E402
+from body.room import BED, PEN                                     # noqa: E402
 from body.muscles import VOICE_PARTS                               # noqa: E402
 from body.hearing import SOUND_BANDS                               # noqa: E402
 from body.hearing import TICK_SECONDS                              # noqa: E402
@@ -677,7 +677,8 @@ class Watched(Her):
             "autofeed": getattr(self, "autofeed", None),
             "bottle": (None if getattr(self, "bottle", None) is None else
                        {"high": round(float(self.bottle["high"]), 3),
-                        "got": int(self.bottle.get("got", 0))}),
+                        "got": int(self.bottle.get("got", 0)),
+                        "at": [round(float(v), 3) for v in (self.bottle.get("at") or ())]}),
             "tunnel": getattr(self, "tunnelUrl", None),
         }
         # THE PANEL MUST NOT LIE.  Her chemistry and her state live in her
@@ -909,14 +910,41 @@ class Watched(Her):
         # sitting ON HER SHOULDER.  It used to be swung 20 to 70 degrees OFF
         # her facing before it was placed, so it never was in front of her at
         # any distance: it landed beside her, on the floor, out of her view.
-        # Her own looking direction now, and nothing added to it.
-        for _ in range(30):
+        # Her own looking direction, and nothing added to it --- UNLESS that
+        # spot is one she cannot reach.
+        #
+        # ...AND NEVER WHERE SHE CANNOT GET IT.  His find, 2026-09-13: "bottle
+        # near" on the panel and no bottle to be seen --- it had landed behind
+        # the pen's fence, or inside a ball, or inside her mother (a 35 cm
+        # marker).  The only check here was "not in her cot".  Now, when she
+        # is in the pen, the spot is kept inside the fence (a rail's reach in
+        # from the wire, plus the bottle itself), and a spot inside any other
+        # thing in the room is refused; straight ahead is tried first, then
+        # a little to either side, so it stays in front of her whenever it can.
+        inPen = (PEN["x0"] <= chest[0] <= PEN["x1"] and PEN["z0"] <= chest[2] <= PEN["z1"])
+        edge = 0.20 + 0.06                               # the rail's reach in, and the bottle
+        for i in range(30):
             r = float(b["rng"].uniform(0.30, 0.45))
-            at = chest + face * r
+            ang = 0.0 if i < 6 else np.radians(10.0 * ((i - 4) // 2)) * (1.0 if i % 2 == 0 else -1.0)
+            c9, s9 = float(np.cos(ang)), float(np.sin(ang))
+            look = np.array([face[0] * c9 - face[2] * s9, 0.0, face[0] * s9 + face[2] * c9], np.float32)
+            at = chest + look * r
             at[1] = float(b["high"])
+            if inPen:
+                at[0] = float(np.clip(at[0], PEN["x0"] + edge, PEN["x1"] - edge))
+                at[2] = float(np.clip(at[2], PEN["z0"] + edge, PEN["z1"] - edge))
             if (abs(at[0]) < BED["x"] + 0.06 and abs(at[2]) < BED["z"] + 0.06
                     and at[1] < BED["top"]):
                 continue                                        # never inside her cot
+            blocked = False
+            for name9, thing9 in list(self.room.things.items()):
+                if name9 == "bottle":
+                    continue
+                if float(np.linalg.norm(at - np.asarray(thing9.at, np.float32))) < float(thing9.size) + 0.06:
+                    blocked = True                              # inside a ball, a rail, her mother
+                    break
+            if blocked:
+                continue
             if last is None or float(np.linalg.norm(at - np.asarray(last))) >= 0.25:
                 break
         b["at"] = [float(v) for v in at]
