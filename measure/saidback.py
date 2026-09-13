@@ -205,9 +205,9 @@ def main() -> int:
     if air is not None:
         write(YOU, air, speech.RATE)
     if live.any():
-        miss = np.abs(made[live] - level[live]) * 512.0
-        print("  her ear on what came back: within 4 grains %.0f%%, median miss %.1f grains, follows the asked level %+.3f" % (
-            100.0 * np.mean(miss <= 4.0), float(np.median(miss)),
+        miss = np.abs(made[live] - level[live])
+        print("  her ear on what came back: within her grain (0.01) %.0f%%, median miss %.4f, follows the asked level %+.3f" % (
+            100.0 * np.mean(miss <= 0.01), float(np.median(miss)),
             float(np.corrcoef(level[live], made[live])[0, 1]) if live.sum() > 2 else 0.0))
     print("  written %s%s" % (HER, ("  and " + YOU) if air is not None else ""))
     praat(HER, YOU if air is not None else None)

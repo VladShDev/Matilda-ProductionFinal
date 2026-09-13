@@ -44,7 +44,7 @@ import numpy as np
 
 from .alike import alike_of
 from . import speech
-from .hearing import TICK_SECONDS
+from .hearing import GATE, TICK_SECONDS
 
 #: where she stands: beside the TRAINING SQUARE, feet on the floor, close
 #: enough that her voice is never thinned away by distance --- his word,
@@ -167,6 +167,10 @@ MIN_WORD_LOUD = 0.03    # clearly phonated (her loudest voice is ~0.09)
 #: father-driven: a word he says while the baby is LOOKING at a thing
 #: becomes that thing's name, for ever.
 HIS_GAP = _ticks(0.3)   # of quiet ends one of his words
+#: HOW MANY OF HIS WORDS SHE KEEPS --- the latest ones.  His word, 2026-09-13:
+#: a mic left on beside a TV made a "word" of every loud stretch, and the list
+#: had no end (and was rewritten whole to mom.json on each).  His to set.
+HIS_WORDS = 32
 #: (her mother keeps every word of his --- his, 2026-09-06; a rotating nine went)
                         # widened 6 -> 9 on his word (2026-08-30, "I
                         # agree with all your suggestion"): eat, step and
@@ -377,12 +381,22 @@ class Teacher:
         word = np.concatenate(self._his)
         self._his = []
         self._hisQuiet = 0
+        # A WORD UNDER HER EAR'S GATE IS NOT A WORD.  His word, 2026-09-13: five
+        # near-silent recordings (peak 0.026) sat in her vocabulary; through her
+        # door every frame of them was 0.0, so they had no ids and nothing the
+        # baby said could ever match them --- word-milk was impossible and
+        # nothing raised.  The same gate her ear uses, nothing new.
+        if float(np.abs(word).max()) <= GATE:
+            return
         frames = self.convert(word)
         if not frames:
             return
         self._hisLex.append(frames)
         # ...and the sound it was made from, kept in step with it
         self._hisPcm.append(np.asarray(word, np.float32).copy())
+        if len(self._hisLex) > HIS_WORDS:
+            del self._hisLex[:-HIS_WORDS]
+            del self._hisPcm[:-HIS_WORDS]
         if looking and str(looking) not in self._namesHis:
             self._namesHis[str(looking)] = frames
             self._pcmHis[str(looking)] = np.asarray(word, np.float32).copy()
@@ -695,7 +709,11 @@ class Teacher:
         if not u:
             return None
         best, score = None, 0
-        for w in self._hisLex:
+        # ...AND THE WORDS SHE HERSELF SAYS COUNT TOO.  His word, 2026-09-13:
+        # she named things 5,130 times in a night ("mama", "milk" --- the table
+        # words in `_namesHis`) and could not pay for any of them coming back,
+        # because only his recordings were candidates here.
+        for w in list(self._hisLex) + list(self._namesHis.values()):
             ids = set(self._ids(w))
             if not ids:
                 continue

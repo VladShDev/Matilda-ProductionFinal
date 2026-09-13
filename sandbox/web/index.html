@@ -972,6 +972,30 @@ function tell(what){
 window.addEventListener('unhandledrejection',function(e){
   tell({reject:String(e.reason).slice(0,300)});
 });
+// THE PAGE'S OWN BLACK BOX.  His word, 2026-09-13: *"make a normal test where
+// you watch the browser also."*  The tab has died after hours on several nights
+// and left nothing --- no exception, no log.  So the page now reports its own
+// health into her log once a minute (heap, DOM size, frames a second, uptime,
+// hidden or not, her tick), and on every load says whether CHROME DISCARDED it
+// (`document.wasDiscarded`: the browser's own confession that it killed the
+// tab).  When it dies, her log holds the last minute before death and the
+// trend up to it: a climbing heap names a leak; a flat heap and no beat names
+// Chrome; a CONTEXT LOST names the GPU.  Read it: grep PAGE <her log>.
+(function(){
+  var frames=0, last=performance.now();
+  function count(){ frames++; requestAnimationFrame(count); }
+  requestAnimationFrame(count);
+  if(document.wasDiscarded) tell({discarded:true, note:'chrome discarded this tab; it reloaded'});
+  tell({loaded:true, hidden:document.hidden});
+  setInterval(function(){
+    var now=performance.now(), fps=Math.round(frames*1000/Math.max(1,now-last));
+    frames=0; last=now;
+    var m=performance.memory||{};
+    tell({beat:1, up:Math.round(now/1000), heapMB:Math.round((m.usedJSHeapSize||0)/1048576),
+          dom:document.getElementsByTagName('*').length, fps:fps, hidden:document.hidden,
+          tick:(window.STATE&&STATE.tick)||null, canvases:document.getElementsByTagName('canvas').length});
+  },60000);
+})();
 function armGLWatch(){
   var cs=document.getElementsByTagName('canvas');
   for(var i=0;i<cs.length;i++){
@@ -3591,7 +3615,7 @@ HANDS.forEach(function(h){
 // his face reached her stretched 1.125x wide from a 4:3 camera and squeezed to
 // 0.844x from a 16:9 one. Nobody had noticed because at 32 x 32 there was
 // nothing recognisable enough to look wrong.
-var SHOW_W=240, SHOW_H=160, camVideo=null, micPcm=[], micRate=16000;
+var SHOW_W=240, SHOW_H=160, camVideo=null, micRing=null, micW=0, micR=0, micRate=16000;
 var sensing=false, posting=false;
 var shrink=null;                 // made on first grab: headless has no canvas
 // THE PACKED PATH, WHICH IS HER OWN EYE'S. `Sandbox.flying` has always taken
@@ -3688,14 +3712,16 @@ var MOST_GAIN=64;       // a dead microphone is not worth infinite gain
 var quietest=GATE;      // the running estimate of THIS mic's own noise floor
 var lastHeard={rms:0,gain:1,floor:GATE,sent:0};
 function micVoice(){
-  if(!micPcm.length) return null;
-  var every=Math.max(1,Math.round(micRate/16000)), out=[];
-  for(var i=0;i+every<=micPcm.length;i+=every){
+  // READ FROM THE RING since the last read (see the tap below): no array is
+  // built or freed here, only the 16 kHz copy that goes out.
+  if(!micRing||micW===micR) return null;
+  var N=micRing.length, n=micW-micR, every=Math.max(1,Math.round(micRate/16000)), out=[];
+  for(var i=0;i+every<=n;i+=every){
     var sum=0;
-    for(var k=0;k<every;k++) sum+=micPcm[i+k];
+    for(var k=0;k<every;k++) sum+=micRing[(micR+i+k)%N];
     out.push(sum/every);
   }
-  micPcm=[];
+  micR=micW;
   if(!out.length) return null;
   var power=0;
   for(var i=0;i<out.length;i++) power+=out[i]*out[i];
@@ -4001,10 +4027,18 @@ async function senseOn(){
       await micCtx.resume().catch(function(){});
       micRate=micCtx.sampleRate;
       var tap=micCtx.createScriptProcessor(4096,1,1);
+      // A FIXED RING, NOT A GROWING ARRAY.  His word, 2026-09-13: the tab dies
+      // after hours with the mic left on beside a TV.  This pushed every sample
+      // into a plain JS array and, once past 8 s, re-made the whole 384,000-
+      // element array with slice() eleven times a second --- tens of MB of
+      // garbage a second for as long as the mic was open, and the old note on
+      // the page already showed the heap sawing 3-36 MB.  A Float32Array ring
+      // of the same 8 s allocates once; writer and reader are two counters.
+      if(!micRing||micRing.length!==micRate*8){ micRing=new Float32Array(micRate*8); micW=0; micR=0; }
       tap.onaudioprocess=function(e){
-        var got=e.inputBuffer.getChannelData(0);
-        for(var i=0;i<got.length;i++) micPcm.push(got[i]);
-        if(micPcm.length>micRate*8) micPcm=micPcm.slice(-micRate*8);
+        var got=e.inputBuffer.getChannelData(0), N=micRing.length;
+        for(var i=0;i<got.length;i++){ micRing[micW%N]=got[i]; micW++; }
+        if(micW-micR>N) micR=micW-N;    // the reader fell 8 s behind: the oldest is lost, as before
       };
       micCtx.createMediaStreamSource(media).connect(tap);
       tap.connect(micCtx.destination);    // unwritten output is silence, not echo
@@ -4025,7 +4059,7 @@ async function senseOn(){
 // taking it opens it again.
 function senseOff(){
   sensing=false;
-  micPcm=[];
+  micW=micR=0;
   if(camVideo&&camVideo.srcObject){
     camVideo.srcObject.getTracks().forEach(function(t){ t.stop(); });
     camVideo.srcObject=null;

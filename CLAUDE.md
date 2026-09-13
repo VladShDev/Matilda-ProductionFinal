@@ -329,12 +329,9 @@ nothing else.
 **Instruments, testing only** (`measure/`; she never imports them):
 `alphabet` --- her possibilities, swept by her own law with one carried mouth;
 `saidback` --- her memory said back through her own mouth, judged by praat;
-`hervoice` --- HIS WORDS IN HER VOICE, the path he chose 2026-09-12 (his air ->
-her ear's 24 levels a piece -> her own mouth with three lines following his
-voicing and pitch -> his envelope on a small child's tract, `--tract 1.5`).
-Every knob is at the top of that file with what it does; change it there and
-nothing else moves. It is the measure of what her memory would give if a sound
-reached it as her ear's levels instead of one number.
+(`hervoice`, 2026-09-12, is gone on his word 2026-09-13: it wore her voice on a
+vocoder and skipped her articulators, so it measured her ear, not her. A test
+of her voice goes through her seven muscles or it is not a test of her.)
 
 The record is DuckDB in `mind/lives/`: every tick of her life, written as a
 start point and then changes. Her page writes its own exceptions and its heap
@@ -356,11 +353,10 @@ Honest, so nobody rediscovers it as a surprise:
 - **Her sound in memory is one level per piece — the one open voice decision.**
   Measured 2026-09-12 with her own judge (vosk): her ear keeps 12 of his 19
   words, her memory keeps 1. So her own mouth gives back his rhythm, loudness
-  and pauses in her voice, and none of his words. Driving her own folds and
-  tract from her ear's 24 levels a piece instead of one gave 20 of 41 words
-  back in a child's voice (`measure.hervoice`). Whether a sound reaches her
-  memory as several levels rather than one is his to decide; it is the only
-  thing between her and copying his words.
+  and pauses in her voice, and none of his words. Whether a sound reaches
+  her memory as several levels rather than one is his to decide --- and it is
+  one of two limits, the other being her seven muscles: her best single pose
+  reaches 0.82 of a heard piece (measured 2026-09-12).
 - **Her look render.** She now attempts a look every tick (`LOOKS_PER_SECOND =
   1/TICK_SECONDS`); the eye runs on its own thread and `_eyeBusy` holds it off
   until the last look is done, so it never blocks her clock. But the full-room
