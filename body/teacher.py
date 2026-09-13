@@ -95,7 +95,6 @@ THING_WORDS = {"bottle": "milk", "teacher": "mama", "ball": "ball",
                "rattle": "rattle", "bear": "bear"}
 NAME_REST = int(round(3.0 / _T))   # 3 s between namings of what she looks at
 #: THE WORD RULES, his answers of 2026-08-28 ("agree"):
-WORD_GAP = _ticks(1.0 / 6)   # the breath inside a word: ma [gap] ma
 CRY_LVL = 0.05          # over half her loudest voice, sustained, is crying
 CRY_TICKS = _ticks(60.0)     # 60 seconds of it --- HIS NUMBER --- earns a
                         # rescue.  It had shrunk to 20 s.
@@ -122,43 +121,15 @@ FEED_AFTER = _ticks(1.0)     # the word FIRST, the milk a beat later (his own
 #: the rebuilt mind: the milk is worth two minutes (FEEDS 0.5), so the rest
 #: is two minutes --- one law, both knobs together.
 FEED_REST = _ticks(110.0)
-#: THE MOM GETS BORED OF PARROTING --- his loop find, 2026-08-28: her
-#: answers arrive on the world line (a voice is a voice), so the baby
-#: heard her own sound "said by the world", learned that saying X brings
-#: X, and the two ping-ponged for ever, loud.  A real mother answers a
-#: fresh sound fully and tapers on the tenth identical one: each answer
-#: settles that form's usual by a quarter; rest drifts it back (~min).
-#: Variety is what earns her voice --- the loop starves, the alphabet
-#: spreads.
-#: A half-life in his seconds, like `PARROT_DRIFT` below.
-PARROT_SETTLE = 1.0 - 0.5 ** (_T / 0.0179)
-#: per tick toward fresh again --- written as the 55 s HALF-LIFE it is meant
-#: to be, so it does not shorten with her clock (at 0.0004 a tick it had
-#: fallen to 19 s: her mother forgot she was bored three times too fast).
-PARROT_DRIFT = 1.0 - 0.5 ** (_T / 55.0)
-PARROT_FLOOR = 0.25     # below this freshness she simply stays quiet
-ANSWER_SOFT = 0.6       # her voice is gentle: the answer's frames scaled
+#: (The parrot --- the mom echoing the baby's own sound back, tapering as it
+#: repeated --- is gone: his word, 2026-09-13.  She says words she has the
+#: sound of, and nothing the baby said is played back at her.)
 #: A DIP IS NOT AN ENDING --- his, 2026-08-29: "her memory full of
 #: broken words ... teach her again on full words".  The baby's fading
 #: voice touches zero mid-word and the capture used to close there, so
 #: the mom learned FRAGMENTS as if they were wholes and taught them
 #: back.  A word ends at a real silence, not a flicker.
 QUIET_GAP = _ticks(1.0 / 6)  # true silence that ends an utterance
-#: ...and the mom now COMPOSES: once the baby owns two reliable forms,
-#: the lexicon holds their doubled words AND the two-sound word A-B ---
-#: a full word, every part the baby's own.
-LEXICON_KEEPS = 2
-#: WHAT COUNTS AS A REAL WORD --- his order, 2026-08-29: "be sure that
-#: you really produsd real words for her not repeat her broken one".
-#: The mom's tally counts every crumb; her VOCABULARY must not.  A
-#: teachable form is at least a syllable's floor of actual voice and
-#: clearly phonated on her own scale; and the exemplar kept is the BEST
-#: ever heard of that form, never merely the latest.
-MIN_WORD_FRAMES = _ticks(0.2)   # 200 ms of voiced sound --- her ear makes one
-                        # frame a tick (SOUND_SLIDES 1), so this had fallen
-                        # to 67 ms: the mom was teaching back crumbs again,
-                        # the very thing his 2026-08-29 order forbade
-MIN_WORD_LOUD = 0.03    # clearly phonated (her loudest voice is ~0.09)
 #: HIS WORDS, CONVERTED --- his order and his approval, 2026-08-29:
 #: "you can gerab my words convert tham and pass to her" ... "its
 #: good".  The mom's teaching vocabulary is now the father's own
@@ -167,6 +138,8 @@ MIN_WORD_LOUD = 0.03    # clearly phonated (her loudest voice is ~0.09)
 #: father-driven: a word he says while the baby is LOOKING at a thing
 #: becomes that thing's name, for ever.
 HIS_GAP = _ticks(0.3)   # of quiet ends one of his words
+#: ONE TICK OF HER VOICE, IN SAMPLES --- what `step` hands the body as air
+TICK_SAMPLES = int(round(speech.RATE * TICK_SECONDS))
 #: HOW MANY OF HIS WORDS SHE KEEPS --- the latest ones.  His word, 2026-09-13:
 #: a mic left on beside a TV made a "word" of every loud stretch, and the list
 #: had no end (and was rewritten whole to mom.json on each).  His to set.
@@ -244,8 +217,6 @@ class Teacher:
         self._cry = 0                # how long the baby has been crying
         self._feedAt = -1            # when the earned milk arrives
         self._fedAt = -10 ** 9       # last reward, for the rest
-        self._parrot: dict = {}      # form -> [usual, last tick]
-        self._names: dict = {}       # thing -> its form: assigned once, kept
         self._his: list = []         # his current word, raw pcm chunks
         self._hisQuiet = 0
         self._hisLex: list = []      # his latest words, as her-register frames
@@ -288,7 +259,6 @@ class Teacher:
         #: speech is going, countable from the page.
         self.answers = 0             # imitations she was given
         self.accents = 0             # his word said back to her, fully
-        self._loud = ANSWER_SOFT     # how loud the answer in flight is
         self.shapes = 0              # his words she said back (was: doubled shapes)
         self.milks = 0               # milk earned by a word
         self.rescues = 0
@@ -353,14 +323,6 @@ class Teacher:
                 np.savez_compressed(self._keep + ".npz", **keep)
         except OSError:
             pass
-
-    def _teachable(self, k) -> bool:
-        """Only a real word enters her vocabulary --- length and voice."""
-        f = self._forms.get(k)
-        if not f:
-            return False
-        n, loud = _quality(f)
-        return n >= MIN_WORD_FRAMES and loud >= MIN_WORD_LOUD
 
     def hears(self, pcm, looking=None) -> None:
         """His voice at the mic, one tick's worth --- collected into
@@ -447,20 +409,6 @@ class Teacher:
         self._namesHis[thing] = [np.asarray(f, np.float32) for f in frames]
         return self._namesHis[thing]
 
-    def _nameFor(self, thing: str):
-        """The thing's own name: the baby's most-said form not yet
-        spoken for --- assigned at first naming, kept for ever.  One
-        thing, one word; two things never share."""
-        got = self._names.get(thing)
-        if got is not None:
-            return got if got in self._forms else None
-        used = set(self._names.values())
-        for k in sorted(self._counts, key=self._counts.get, reverse=True):
-            if k not in used and self._teachable(k):
-                self._names[thing] = k
-                return k
-        return None
-
     def _saying(self, name: str, frames) -> None:
         """RECORD WHICH WORD SHE IS ABOUT TO SAY, and its sounds.
 
@@ -489,23 +437,40 @@ class Teacher:
 
     def step(self, tick: int, made, soundId: int, herLvl: float,
              hisTalking: bool, looking=None):
-        """One tick of her.  Returns band frames for the air, or None.
+        """One tick of her.  Returns ONE TICK OF HER VOICE AS AIR (pcm at
+        `speech.RATE`, `TICK_SAMPLES` long), or None when she is silent.
 
-        `made` is what the baby's mouth actually put out this tick (the
-        voice's own band frames), `herLvl` its loudness, `hisTalking`
-        whether the owner's voice is in the room this tick.
+        HER VOICE IS AIR IN THE ROOM, NOT FRAMES IN THE EAR.  His word,
+        2026-09-13: *"her mother told everything already converted ... remove
+        all of this and make mom just pronouncing in a natural way the word,
+        and she would repeat it."*  Until today an answer was a list of band
+        frames dropped straight into `sounding` --- a side entrance past her
+        ear, a conversion done FOR her.  Now the body carries this air into
+        the mother's own last-LISTENS buffer and the same `door` names it,
+        exactly as his voice (`alive.py`).  Her word list (`_hisLex`,
+        `_namesHis`, band frames) is only her EAR --- how she recognises a
+        piece of a word in what the baby says --- never what she speaks.
+
+        `made` is what the baby's mouth put out this tick (band frames, for
+        her listening), `herLvl` its loudness, `hisTalking` whether the
+        owner's voice is in the room.  What she says, always as her own air:
+        the word for what the baby looks at; a word said back WHOLE when the
+        baby's sound holds a piece of it, the milk a beat behind; one of his
+        words when the room is quiet.  Nothing of the baby's own babble is
+        echoed back: the parrot, and the lexicon built of the baby's own
+        forms, are gone (his word, 2026-09-13: they taught her to lie still
+        and squeak for milk).
         """
         self.saying = False
         # SHE NAMES WHAT THE BABY LOOKS AT, out loud, once per NAME_REST
         if (self.on and self._answer is None and looking is not None
                 and str(looking) in THING_WORDS and tick - self._namedLookAt >= NAME_REST):
             frames9 = self._tableWord(str(looking))
-            if frames9:
-                self._answer = (list(frames9), 0)
-                self._due = tick
+            pcm9 = self._pcmHis.get(str(looking))
+            if frames9 and pcm9 is not None:
+                self._speak(str(looking), frames9, pcm9, tick)
                 self._namedLookAt = tick
                 self.named += 1
-                self._saying(str(looking), frames9)
         if not self.on:
             self._utter = []
             self._answer = None
@@ -540,148 +505,70 @@ class Teacher:
             self._gap = 0
             k = self._key if self._key is not None else 0
             self._counts[k] = self._counts.get(k, 0) + 1
-            # the BEST exemplar of a form is the one worth teaching back
             old = self._forms.get(k)
             if old is None or _quality(frames) >= _quality(old):
                 self._forms[k] = frames
-            # HIS WORD SAID BACK --- his, 2026-09-06: the twice-law ("the same
-            # sound twice, close together") was his own early misunderstanding
-            # and is gone; the rule is the core's: is it new, it is an
-            # experience, not new, usual.  What her mother pays for is what
-            # she teaches: when what the baby just said holds a piece of one
-            # of HIS words (whatever has come through the window), her
-            # mother says that word back whole, at full voice (his 2026-09-05
-            # accent), and the milk follows a beat behind, once per his rest
-            # (FEED_REST).  Company relieves her loneliness and the milk her
-            # hunger: both are dopamine.  Everything else gets the parrot:
-            # thin, and fading on repeats.  No word is named here.
+            # A WORD SAID BACK, AND THE MILK.  When what the baby just said
+            # holds a piece of a word she knows --- his, or her own table
+            # words --- she says that word back whole, at full voice, and the
+            # milk follows a beat behind, once per his rest (FEED_REST).
+            # Company relieves her loneliness and the milk her hunger: both
+            # are dopamine.  Anything else the baby says gets nothing.
             his9 = self._his9(frames)
             if his9 is not None:
-                self._answer = (list(his9), 0)
-                self._loud = 1.0
-                self._due = tick + ANSWER_AFTER
+                name9, frames9, pcm9 = his9
+                self._speak(name9, frames9, pcm9, tick + ANSWER_AFTER)
                 self.accents += 1
                 self.shapes += 1
                 if tick - self._fedAt >= FEED_REST:
                     self._feedAt = tick + ANSWER_AFTER + FEED_AFTER
                     self._fedAt = tick
                     self.milks += 1
-            elif tick - self._saidAt >= REFRACTORY:
-                got = self._parrot.get(k)
-                if got is None:
-                    got = [0.0, tick]
-                    self._parrot[k] = got
-                got[0] *= (1.0 - PARROT_DRIFT) ** max(0, tick - got[1])
-                got[1] = tick
-                if 1.0 - got[0] >= PARROT_FLOOR:
-                    got[0] += (1.0 - got[0]) * PARROT_SETTLE
-                    self._answer = (frames, 0)
-                    self._loud = ANSWER_SOFT
-                    self._due = tick + ANSWER_AFTER
             self._lastKey, self._lastEnd = k, tick
             self._quietAt = tick
             return None
         if self._answer is not None and tick >= self._due:
-            frames, k2 = self._answer
-            out = frames[k2]           # None inside a word is the breath
-            if out is not None:
-                out = out * self._loud
-            if k2 + 1 >= len(frames):
+            # ONE TICK OF THE WORD, AS AIR
+            pcm, at = self._answer
+            out = np.asarray(pcm[at:at + TICK_SAMPLES], np.float32)
+            if at + TICK_SAMPLES >= len(pcm):
                 self._answer = None
                 self._saidAt = tick
                 self.answers += 1
             else:
-                self._answer = (frames, k2 + 1)
+                self._answer = (pcm, at + TICK_SAMPLES)
+            if out.size < TICK_SAMPLES:
+                out = np.pad(out, (0, TICK_SAMPLES - out.size))
             self.saying = True
             self._quietAt = tick
             return out
-        if (True
-                and tick - self._quietAt >= NAMES_AFTER
+        if (tick - self._quietAt >= NAMES_AFTER
                 and tick - self._saidAt >= REFRACTORY
-                and (self._counts or self._hisLex)):
-            # OBJECT-NAMING, HIS ORDER 2026-08-29: the mom sees what the
-            # baby sees.  When the calm gaze holds a thing --- the
-            # television, the mom herself, the bottle --- she says THAT
-            # THING'S name, its own stable form, every time.  Word and
-            # thing stand together in the same moment; the pair machinery
-            # does the binding.  Nothing in the baby is told anything.
-            if not looking:
-                # SHE LOOKS NOWHERE: the mom calls her BY NAME --- his
-                # rule, 2026-08-29: "pass mattilda when she looks no
-                # where, than mama when she looks aon mom".  The baby's
-                # own name is the word for nowhere-in-particular, which
-                # is what calling someone is.
-                hisW0 = self._namesHis.get("nowhere")
-                if hisW0 is not None:
-                    self._saying("nowhere", hisW0)
-                    self._answer = (list(hisW0), 0)
-                    self._due = tick
-                    self._quietAt = tick
-                    self.named += 1
-                    return None
-            if looking:
-                hisW = self._namesHis.get(str(looking))
-                if hisW is not None:
-                    self._saying(str(looking), hisW)
-                    self._answer = (list(hisW), 0)
-                    self._due = tick
-                    self._quietAt = tick
-                    self.named += 1
-                    return None
-                k4 = self._nameFor(str(looking))
-                if k4 is not None:
-                    # naming the thing with the baby's OWN form for it --- a
-                    # word all the same, and the one she is likeliest to
-                    # answer, so it is recorded like any other
-                    self._saying(str(looking), self._word(self._forms[k4]))
-                    self._answer = (self._word(self._forms[k4]), 0)
-                    self._due = tick
-                    self._quietAt = tick
-                    self.named += 1
-                    return None
-            # a long calm: she offers a name --- one of the baby's own
-            # most-repeated forms, the same form each time
-            if self._hisLex:
-                # HIS words are the lessons, in rotation
-                at = (tick // NAMES_AFTER) % len(self._hisLex)
-                pick = self._hisLex[at]
-                # ...and its sound, for his ear only
-                self.saidPcm = (self._hisPcm[at]
-                                if at < len(self._hisPcm) else None)
-                # HIS WORDS IN ROTATION HAVE NO NAME --- `_hisLex` is his
-                # recorded speech as frames, kept without a label.  It is
-                # still a WORD, said again and again, and the instruments
-                # match by its SOUNDS, so it is recorded by its place in the
-                # rotation.  Before this, her mother spoke these all day and
-                # the sheet said "her mother named no words this run".
-                self._saying("his word %d" % at, pick)
-                self._answer = (list(pick), 0)
-                self._due = tick
+                and (self._namesHis or self._hisLex)):
+            # THE ROOM IS QUIET: the word for what the baby looks at (or for
+            # nowhere), else one of his words in rotation --- as her air.
+            name9 = str(looking) if looking else "nowhere"
+            w9, p9 = self._namesHis.get(name9), self._pcmHis.get(name9)
+            if w9 is not None and p9 is not None:
+                self._speak(name9, w9, p9, tick)
+                self._quietAt = tick
                 self.named += 1
                 return None
-            best = [k3 for k3 in sorted(self._counts,
-                                        key=self._counts.get, reverse=True)
-                    if self._teachable(k3)][:LEXICON_KEEPS]
-            if not best:
+            if self._hisLex and self._hisPcm:
+                n9 = min(len(self._hisLex), len(self._hisPcm))
+                at = (tick // NAMES_AFTER) % n9
+                self._speak("his word %d" % at, self._hisLex[at], self._hisPcm[at], tick)
+                self._quietAt = tick
+                self.named += 1
                 return None
-            # SHE TEACHES FULL WORDS: each reliable form doubled --- and,
-            # once the baby owns TWO forms, the composed word A-B: two
-            # different sounds in order, every part the baby's own.  The
-            # lexicon is stable and cycles; composition is how "two
-            # letters in order" is modelled instead of hoped for.
-            lex = [self._word(self._forms[k3]) for k3 in best]
-            if len(best) >= 2:
-                lex.append(list(self._forms[best[0]]) + [None] * WORD_GAP
-                           + list(self._forms[best[1]]))
-            pick = lex[(tick // NAMES_AFTER) % len(lex)]
-            self._answer = (pick, 0)
-            self._due = tick
         return None
 
-    @staticmethod
-    def _word(frames: list) -> list:
-        """A word out of a form: the form, a breath, the form again."""
-        return list(frames) + [None] * WORD_GAP + list(frames)
+    def _speak(self, name, frames, pcm, due: int) -> None:
+        """QUEUE A WORD AS AIR: its sound plays out one tick a step from
+        `due`.  `frames` are only what the instruments read (`_saying`)."""
+        self._saying(str(name), frames)
+        self._answer = (np.asarray(pcm, np.float32).ravel(), 0)
+        self._due = int(due)
 
     @staticmethod
     def _ids(frames) -> list:
@@ -700,26 +587,28 @@ class Teacher:
         return got
 
     def _his9(self, frames):
-        """WHICH OF HIS WORDS THE BABY JUST SAID, if any --- the one of
-        `_hisLex` whose ids (her ear's) the utterance holds most of, at
-        her ear's own resolution: one id is one piece she can tell (his,
-        2026-09-06: the pieces are what she has to be rewarded for; "half"
-        was the implementation's number).  None when it holds none."""
+        """WHICH WORD THE BABY JUST SAID A PIECE OF, if any --- his words and
+        her own table words alike --- as `(name, frames, pcm)`, the pcm being
+        what she will say back as air.  The ids are her ear's (`_ids`), one
+        shared id is one piece she can tell (his, 2026-09-06).  A word she has
+        no sound for cannot be said back and is not a candidate.  None when
+        the utterance holds a piece of nothing."""
         u = set(self._ids(frames))
         if not u:
             return None
+        cands = [("his word %d" % k, w, self._hisPcm[k])
+                 for k, w in enumerate(self._hisLex) if k < len(self._hisPcm)]
+        cands += [(t, w, self._pcmHis.get(t)) for t, w in self._namesHis.items()]
         best, score = None, 0
-        # ...AND THE WORDS SHE HERSELF SAYS COUNT TOO.  His word, 2026-09-13:
-        # she named things 5,130 times in a night ("mama", "milk" --- the table
-        # words in `_namesHis`) and could not pay for any of them coming back,
-        # because only his recordings were candidates here.
-        for w in list(self._hisLex) + list(self._namesHis.values()):
+        for name, w, pcm in cands:
+            if pcm is None:
+                continue
             ids = set(self._ids(w))
             if not ids:
                 continue
             hit = len(u & ids)
             if hit >= 1 and hit > score:
-                best, score = w, hit
+                best, score = (name, w, pcm), hit
         return best
 
     # --- what the body asks her --------------------------------------------
@@ -772,26 +661,18 @@ class Teacher:
 
     def fed(self, tick: int) -> None:
         """THE NAMING CURRICULUM, first noun: milk is at her lips, and
-        the mom says the FOOD'S NAME --- one stable form, picked once
-        from the baby's own most-said sounds and kept, said at every
-        feed from then on.  Word with thing, thing with relief: the pair
-        machinery binds them, and the first word ABOUT something is
-        earned, never implanted."""
+        the mom says the FOOD'S NAME --- her own word for the bottle
+        ("milk", or his word for it if he named it), as air, at every
+        feed.  Word with thing, thing with relief: the pair machinery
+        binds them.  (It used to pick a form from the baby's own babble
+        and say that back; gone, his word 2026-09-13.)"""
         if not self.on or self._answer is not None:
             return
-        hisW = self._namesHis.get("bottle") or self._tableWord("bottle") or (
-            self._hisLex[-1] if self._hisLex else None)
-        if hisW is not None:
-            self._answer = (list(hisW), 0)
-            self._due = tick
+        hisW = self._namesHis.get("bottle") or self._tableWord("bottle")
+        pcm = self._pcmHis.get("bottle")
+        if hisW is not None and pcm is not None:
+            self._speak("bottle", hisW, pcm, tick)
             self.named += 1
-            return
-        k = self._nameFor("bottle")
-        if k is None:
-            return
-        self._answer = (self._word(self._forms[k]), 0)
-        self._due = tick
-        self.named += 1
 
     def helperWanted(self, tick: int):
         """The night shift's slot for this moment --- None is the free

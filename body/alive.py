@@ -456,6 +456,8 @@ class Her:
         self.ears = np.zeros((2, SOUND_BANDS, SOUND_SLIDES), np.float32)
         #: the last `LISTENS` of his air, from which each tick's piece is named
         self._hisAir = np.zeros(0, np.float32)
+        #: ...and the last `LISTENS` of her MOTHER'S air, named the same way
+        self._momAir = np.zeros(0, np.float32)
         self.voiced = np.zeros(SOUND_BANDS, np.float32)
         #: WHAT KEEPS ARRIVING --- so the floor can name itself.
         #:
@@ -1568,8 +1570,17 @@ class Her:
                                  spoke,
                                  his is not None,
                                  looking=look9)
-        if told is not None:
-            sounding.append((self.teacher.at, told))
+        # HER MOTHER'S VOICE IS AIR IN THE ROOM.  His word, 2026-09-13: her
+        # words used to arrive pre-cut into band frames --- converted for her,
+        # past her ear.  Now `step` hands one tick of pcm; it goes into the
+        # mother's own last-LISTENS buffer, from her position, and the same
+        # `door` that names his voice names hers.  One gate, no side entrance.
+        mom9 = (np.asarray(told, np.float32).ravel() if told is not None
+                else np.zeros(int(round(speech.RATE * TICK_SECONDS)), np.float32))
+        self._momAir = np.concatenate([self._momAir, mom9])[-int(round(speech.RATE * LISTENS)):]
+        if float(np.abs(self._momAir).max()) > 0.0:
+            sounding.append((self.teacher.at,
+                             door(self._momAir, speech.RATE, LISTENS, SOUND_HOPS)))
         # ...AND THE MOM'S HANDS, on his three rules (2026-08-28).  The
         # earned milk: a word-shape (the same sound twice, close) brings
         # a third of a mouthful, the word arriving FIRST --- her flesh's
