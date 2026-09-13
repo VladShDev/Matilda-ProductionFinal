@@ -680,6 +680,18 @@ class Her:
             self.her.carrying[k] = True
 
         if self.helper in ("walk", "crawl"):
+            if getattr(self, "_bringing", False):
+                # BROUGHT: down over the pen's middle (or out of time) --- the
+                # helper he had before resumes; none, and the hands let go.
+                cB = p[J["chest"]]
+                there = (abs(float(cB[0]) - 9.0) < 0.35 and abs(float(cB[2]) - 9.0) < 0.35
+                         and float(cB[1]) <= 0.55)
+                if there or len(self.ticks) >= int(getattr(self, "_bringTill", 0)):
+                    self._bringing = False
+                    if getattr(self, "_bringWas", None) not in ("walk", "crawl"):
+                        self.letGo()
+                        self.helper = None
+                        return
             # THE TRAINING SPACE IS THE OPEN FLOOR, NEVER THE COT --- his
             # screenshot, 2026-08-30: the walker had stood her up INSIDE
             # the crib, stepping on her own mattress between the bars.  A
@@ -701,7 +713,11 @@ class Her:
             # (`comeBack`).  Only furniture still makes the hands carry her
             # out first: a walker on her own mattress between the bars is not
             # walking.
-            if onWhat > 0.15:
+            # ...and the carry ends once she is OVER the pen's middle: from
+            # there the set-down below lowers her, and arrival releases her.
+            overPen = (abs(float(p[J["chest"], 0]) - 9.0) < 0.35
+                       and abs(float(p[J["chest"], 2]) - 9.0) < 0.35)
+            if onWhat > 0.15 or (getattr(self, "_bringing", False) and not overPen):
                 # TWO HANDS, AND THE HANDS' OWN CLIMB.  The first cut aimed
                 # one hand at her chest's current height plus a step --- so
                 # a limb snagged on a crib bar stalled the hand for ever
@@ -1143,13 +1159,20 @@ class Her:
         crying) and lift (after a minute of chatter) are gone; this is the one
         hand that brings her back, and only he moves it.  Never over a
         helper's hold."""
-        if self.helper is not None:
-            return
-        c = self.her.pos[JIDX["chest"]]
-        inPen = (PEN["x0"] <= c[0] <= PEN["x1"] and PEN["z0"] <= c[2] <= PEN["z1"])
-        self._rescueTo = (((PEN["x0"] + PEN["x1"]) / 2.0, 0.0, (PEN["z0"] + PEN["z1"]) / 2.0)
-                          if inPen else (0.0, 0.0, 0.0))
-        self._rescueTill = len(self.ticks) + 270             # three seconds, as the rescue was
+        # HIS BUTTON WINS: whatever hand is on her lets go, and the carrying
+        # hands take over --- the same lift, carry and set-down the helpers use
+        # to take her off furniture (`_helpers`), aimed at the pen's centre.
+        # It used to be a floor slide toward "the room's middle", which in her
+        # cot is where she already lies: pressed there, it did nothing (his
+        # find, 2026-09-13).  When she is down in the pen the helper he had
+        # resumes; if he had none, the hands let go.
+        self._bringWas = self.helper
+        if self.helper == "cradle":
+            self.letGo()
+        if self.helper not in ("walk", "crawl"):
+            self.helper = "crawl"
+        self._bringing = True
+        self._bringTill = len(self.ticks) + 90 * 25          # a generous ceiling
 
     def give(self, milk: float) -> None:
         """SOMETHING AT HER LIPS.  Her body writes the line; she decides
@@ -1650,25 +1673,6 @@ class Her:
         if self.teacher.on:
             if self.teacher.feedWanted(len(self.ticks)):
                 self.give(0.33)
-        till = getattr(self, "_rescueTill", 0)
-        if till and self.helper is None:
-            k9 = JIDX["chest"]
-            if len(self.ticks) < till:
-                at9 = self.her.pos[k9]
-                to9 = np.asarray(getattr(self, "_rescueTo", (0.0, 0.0, 0.0)), np.float32)
-                d9 = np.asarray([to9[0] - at9[0], 0.0, to9[2] - at9[2]], np.float32)
-                n9 = float(np.linalg.norm(d9))
-                if n9 <= 0.05:
-                    self._rescueTill = len(self.ticks)     # she is there: let go next tick
-                elif n9 > 1e-6:
-                    at9 = at9 + d9 * (min(0.02, n9) / n9)
-                self.her.carry_at[k9] = at9
-                self.her.carried[k9] = 1.0
-                self.her.carrying[k9] = True
-            else:
-                self._rescueTill = 0
-                self.her.carrying[k9] = False
-                self.her.carried[k9] = 0.0
         ears = self.ears = hear(sounding, her)
         # ONE INPUT, AND EVERYTHING IS IN IT.  His word, 2026-09-12: *"she has
         # to have just one input, her ears, and both our tracks --- every sound
