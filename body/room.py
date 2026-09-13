@@ -281,7 +281,15 @@ class Room:
         """
         out = np.hypot(pos[:, 0] / BED["x"], pos[:, 2] / BED["z"])
         rim = np.clip(1.0 - (out - 1.0) / SKIRT, 0.0, 1.0)
-        return BED["top"] * rim + BASIN * np.clip(out, 0.0, 1.0) ** 2 + radius
+        # THE BOWL FADES WITH THE RIM.  His find, 2026-09-13: the nest's 5 cm
+        # (BASIN) was added everywhere, so outside the cot --- the pen, the open
+        # floor --- her ground was 0.05 m above the floor her eye draws at 0.0:
+        # she stood and reached on an invisible plane, a ball resting on the
+        # floor sat below her hand's stop, and things looked "deeper than the
+        # floor".  Outside the skirt the ground is now the room floor, the same
+        # 0.0 the render uses (`light._SIDES`).  The nest itself is unchanged:
+        # 0.34 at the centre, 0.39 at the rim, then down to 0.
+        return rim * (BED["top"] + BASIN * np.clip(out, 0.0, 1.0) ** 2) + radius
 
     def stop(self, pos: np.ndarray, radius: np.ndarray, pinned: np.ndarray) -> None:
         """Put back anything that has ended up somewhere it cannot be.

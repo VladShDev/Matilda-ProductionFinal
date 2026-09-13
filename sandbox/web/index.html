@@ -4773,8 +4773,7 @@ fetch('/meta',{cache:'no-store'}).then(function(r){ return r.json(); }).then(fun
       '  shape ' + vw.slice(5).map(function (x) { return x.toFixed(2); }).join(' ')
     : '';
   box.querySelector('#eyeInfo').textContent =
-    'similarity ' + Math.round(vw[0] * 512) + '   ' + vw[0].toFixed(4) +
-    '    x ' + vw[1].toFixed(3) + '   y ' + vw[2].toFixed(3) + ten;
+    'x ' + vw[1].toFixed(3) + '   y ' + vw[2].toFixed(3) + ten;
   }
 
   /* WHAT REACHED EACH EAR, one bar a band, left over right.
