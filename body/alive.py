@@ -58,7 +58,7 @@ from body.ragdoll import _BONES, JIDX, Ragdoll   # `_BONES` is for DRAWING
 #: silently, because `Watched` overrides `snap` and nothing served `/pose`,
 #: so the only way to reach them was to run a plain `Her.live()`, which
 #: nothing does.  Two of her six body methods were dead and green.
-from body.room import PEN, ROOM, Room
+from body.room import MIRROR, PEN, ROOM, Room
 from body.window import Window
 from body import balance, orient, skin
 from mind.structure import Motor, Sensor, Spindle, Tick, View
@@ -1107,6 +1107,10 @@ class Her:
                           np.asarray(self.board.at, np.float32)))
         for name, thing in list(self.room.things.items()):   # see light._scene
             cands.append((name, np.asarray(thing.at, np.float32)))
+        # ...AND HER MIRROR, so her mother can say her name when she looks at
+        # herself (his voice for it, 2026-09-13).  The glass's centre, as
+        # `room.py` places it.
+        cands.append(("mirror", np.asarray([MIRROR["at"], MIRROR["y"], MIRROR["z"]], np.float32)))
         for name, at in cands:
             d = at - head
             m = float(np.linalg.norm(d))

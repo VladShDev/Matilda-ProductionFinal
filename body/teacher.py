@@ -92,7 +92,12 @@ NAME_KEEPS = 2          # her vocabulary: the two forms the baby says most
 #: out loud, through the same door her own ear uses.  She names what the baby
 #: is looking at, once per NAME_REST, as a mother does across a table.
 THING_WORDS = {"bottle": "milk", "teacher": "mama", "ball": "ball",
-               "rattle": "rattle", "bear": "bear"}
+               "rattle": "rattle", "bear": "bear",
+               # his voice, 2026-09-13: things she can look at whose word is a
+               # recording of him in the keepsake (no table sound exists for
+               # them, so without his recording nothing is said)
+               "pyramid": "pyramid", "cube": "cube", "window": "tv",
+               "papa": "papa", "mirror": "matilda"}
 #: WORDS FOR WHAT HAPPENS TO HER BODY, said at the moment it happens --- his
 #: ask, 2026-09-13: "up" and "down", real meaning, by the same law that gave
 #: her "milk": the word arrives WITH the thing.  Here the thing is a hand
@@ -140,6 +145,8 @@ QUIET_GAP = _ticks(1.0 / 6)  # true silence that ends an utterance
 #: father-driven: a word he says while the baby is LOOKING at a thing
 #: becomes that thing's name, for ever.
 HIS_GAP = _ticks(0.3)   # of quiet ends one of his words
+#: the most sound one of his words can be --- longer is the room, not a word
+HIS_WORD_MOST = int(round(3.0 * speech.RATE))
 #: ONE TICK OF HER VOICE, IN SAMPLES --- what `step` hands the body as air
 TICK_SAMPLES = int(round(speech.RATE * TICK_SECONDS))
 #: HOW MANY OF HIS WORDS SHE KEEPS --- the latest ones.  His word, 2026-09-13:
@@ -322,16 +329,40 @@ class Teacher:
         if not self.on or self.convert is None:
             return
         loud = float(np.abs(pcm).max()) if pcm is not None and len(pcm) else 0.0
-        if loud > 0.0:
+        # QUIET IS UNDER HER EAR'S GATE, NOT ZERO.  His recording, 2026-09-13:
+        # twenty words spoken, one kept.  The page never sends an exact zero
+        # (a room has a floor), so "quiet" never came and everything since the
+        # first word was one endless word that never landed.  The same GATE
+        # her ear uses decides: a tick under it is quiet, and a word ends after
+        # HIS_GAP of it.  The quiet ticks inside a word stay in it (a word has
+        # its own small silences); the trailing quiet is cut off below.
+        # ...AND THE GATE IS THE ROOM'S OWN FLOOR.  His mic, 2026-09-13,
+        # measured at her ear: not one tick of exact silence in three minutes
+        # and the pauses at 0.05-0.07 --- the page's gain lifts the room's
+        # floor above her 0.02.  So quiet is judged against the floor of HIS
+        # channel: the running least of its loudness (falls at once, climbs a
+        # hair a tick), and a tick under twice that floor is quiet.  The 2 is
+        # the one number here; his to set.
+        floor = min(loud, float(getattr(self, "_hisFloor", loud)) + 0.001)
+        self._hisFloor = floor
+        if loud > max(GATE, 2.0 * floor):
             self._his.append(np.asarray(pcm, np.float32).copy())
             self._hisQuiet = 0
             return
         if not self._his:
             return
+        self._his.append(np.asarray(pcm, np.float32).copy())
         self._hisQuiet += 1
         if self._hisQuiet <= HIS_GAP:
+            # ...AND A WORD HAS AN END EVEN IF THE ROOM NEVER GOES QUIET: a
+            # mic beside a TV grew one word for ever.  Past HIS_WORD_MOST of
+            # sound it is not a word and is dropped.
+            if sum(len(x) for x in self._his) > HIS_WORD_MOST:
+                self._his = []
+                self._hisQuiet = 0
             return
-        word = np.concatenate(self._his)
+        keep = len(self._his) - self._hisQuiet          # the word without its trailing quiet
+        word = np.concatenate(self._his[:max(1, keep)])
         self._his = []
         self._hisQuiet = 0
         # A WORD UNDER HER EAR'S GATE IS NOT A WORD.  His word, 2026-09-13: five
