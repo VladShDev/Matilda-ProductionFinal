@@ -691,15 +691,17 @@ class Her:
                          float(under[J["knL"]]), float(under[J["knR"]]))
             # 0.15: furniture is knee-high and up; the 8 cm rug by the
             # mom's spot is walkable ground, the 37 cm cot is not.
-            # ...and WHEREVER the hands find her, the training square is
-            # where they take her --- his last piece, 2026-08-30: *"when
-            # mom in automatic will press walk and help her, she has to
-            # pull her on this walking space because now she just stay
-            # outside of this square."*
-            cxT, czT, halfT = self.WALK_ZONE
-            offSquare = (abs(float(p[J["chest"], 0]) - cxT) > halfT - 0.15
-                         or abs(float(p[J["chest"], 2]) - czT) > halfT - 0.15)
-            if onWhat > 0.15 or offSquare:
+            # ...AND NOWHERE ELSE.  Until 2026-09-13 the hands also lifted her
+            # whenever she stood within 15 cm of the training square's edge
+            # and drifted her back to its middle --- his 2026-08-30 piece
+            # ("pull her on this walking space").  His word today undoes it:
+            # *"helpers have to be able to work freely everywhere"* --- a
+            # helper holds her wherever she is, up to the real fence, and the
+            # one hand that brings her to the middle is his button
+            # (`comeBack`).  Only furniture still makes the hands carry her
+            # out first: a walker on her own mattress between the bars is not
+            # walking.
+            if onWhat > 0.15:
                 # TWO HANDS, AND THE HANDS' OWN CLIMB.  The first cut aimed
                 # one hand at her chest's current height plus a step --- so
                 # a limb snagged on a crib bar stalled the hand for ever
