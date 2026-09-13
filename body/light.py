@@ -484,6 +484,37 @@ def _box(o, d, at, half, colour, best_t, best_c, near=None):
                    & (far > 1e-4) & (hit_t > 1e-4), near)
 
 
+def _pyramid(o, d, at, size, colour, best_t, best_c, near=None):
+    """A square pyramid standing on its base --- his shapes, 2026-09-13: her
+    eye had only spheres and the box of her bed.  Five planes clipped the way
+    the box clips its six: the base at `at.y - size`, `size` wide each way,
+    the apex at `at.y + size`.  A ray is inside where it has passed every
+    entering plane and not yet any leaving one."""
+    xp = _mod(d)
+    s9 = float(size)
+    at9 = np.asarray(at, np.float32)
+    apex = at9 + np.array([0.0, s9, 0.0], np.float32)
+    k = float(1.0 / np.sqrt(5.0))
+    planes = ((np.array([0.0, -1.0, 0.0], np.float32), at9 - np.array([0.0, s9, 0.0], np.float32)),
+              (np.array([2 * k, k, 0.0], np.float32), apex),
+              (np.array([-2 * k, k, 0.0], np.float32), apex),
+              (np.array([0.0, k, 2 * k], np.float32), apex),
+              (np.array([0.0, k, -2 * k], np.float32), apex))
+    t_in = xp.full(d.shape[0], -_FAR, dtype=d.dtype)
+    t_out = xp.full(d.shape[0], _FAR, dtype=d.dtype)
+    ok = xp.ones(d.shape[0], dtype=bool)
+    for n9, p0 in planes:
+        denom = (d[:, 0] * float(n9[0]) + d[:, 1] * float(n9[1])
+                 + d[:, 2] * float(n9[2]))
+        num = float((p0 - np.asarray(o, np.float32)) @ n9)
+        t = num / xp.where(xp.abs(denom) > 1e-9, denom, 1e-9)
+        t_in = xp.where(denom < -1e-9, xp.maximum(t_in, t), t_in)
+        t_out = xp.where(denom > 1e-9, xp.minimum(t_out, t), t_out)
+        ok = ok & ~((xp.abs(denom) <= 1e-9) & (num < 0.0))
+    hit = ok & (t_in <= t_out) & (t_in > 1e-4)
+    return _closer(best_t, best_c, t_in, colour, hit, near)
+
+
 def _sphere(o, d, at, size, colour, best_t, best_c, near=None):
     xp = _mod(d)
     away = o - np.asarray(at, np.float32)            # tiny, host arithmetic
@@ -678,11 +709,22 @@ def _scene(room, window, o, d, body, best_t=None, best_c=None, near=None):
     # `list()` copies the handful of references her room holds; it changes what
     # she sees by nothing at all.
     for thing in list(room.things.values()):
-        best_t, best_c = _sphere(o, d, thing.at, thing.size,
-                                 _lift(np.array(COLOURS.get(thing.what,
-                                                            COLOURS["thing"]),
-                                                np.float32)),
-                                 best_t, best_c, near)
+        colour9 = _lift(np.array(COLOURS.get(thing.what, COLOURS["thing"]),
+                                 np.float32))
+        shape9 = str(getattr(thing, "shape", "ball"))
+        # THREE SHAPES FOR HER EYE (his ask, 2026-09-13): a thing is drawn as
+        # what it is --- a ball, a cube of half-size `size`, or a pyramid.
+        if shape9 == "cube":
+            s9 = float(thing.size)
+            best_t, best_c = _box(o, d, np.asarray(thing.at, np.float32),
+                                  np.array([s9, s9, s9], np.float32), colour9,
+                                  best_t, best_c, near)
+        elif shape9 == "pyramid":
+            best_t, best_c = _pyramid(o, d, thing.at, thing.size, colour9,
+                                      best_t, best_c, near)
+        else:
+            best_t, best_c = _sphere(o, d, thing.at, thing.size, colour9,
+                                     best_t, best_c, near)
     if body is not None:
         parts, sizes = body
         skin = _lift(np.array(COLOURS["skin"], np.float32))

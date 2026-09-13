@@ -873,12 +873,18 @@
     <button class="row" id="floorbtn" title="the walker's slow treadmill: a loaded foot near the ground is carried gently backward, so held standing becomes stepping — press for on, again for off, a third press back to auto (moves with the walking helper or your grab)">
       <svg class="g" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 16.5h16"/><circle cx="7.5" cy="19" r="1.6"/><circle cx="16.5" cy="19" r="1.6"/><path d="M8 12l-3 2M13 10l-3 3M18 8l-3 3"/></svg>
       <span class="say">moving floor</span><span id="floor_val" style="opacity:.8;font-size:12px">auto</span></button>
+    <button class="row" id="ballsbtn" title="the pen's three balls, on their own: solid things she can reach and bump. they only roll while the moving floor is on">
+      <svg class="g" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="7" cy="15" r="3.2"/><circle cx="16" cy="9" r="3.2"/><circle cx="16.5" cy="17.5" r="2.2"/></svg>
+      <span class="say">balls</span><span id="balls_val" style="opacity:.8;font-size:12px">off</span></button>
     <button class="row" id="bottlebtn" title="a bottle in her room: she is fed when her own hand or mouth reaches it. it rises as she gets quicker at finding it, and sinks back toward the floor when she cannot">
       <svg class="g" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 3h4M9 7h6l1 12a2 2 0 0 1-2 2h-4a2 2 0 0 1-2-2z"/></svg>
       <span class="say">bottle</span><span id="bot_val" style="opacity:.8;font-size:12px">off</span></button>
     <button class="row" id="cradle" title="wrap her — every joint but her head, and she feels the pressure of it. a tool: it pins her so you can come close and show her something">
       <svg class="g" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="5.6" r="2.4"/><path d="M6.6 21c0-4.6 2.4-8.6 5.4-8.6s5.4 4 5.4 8.6z"/><path d="M7.6 16.6h8.8"/></svg>
       <span class="say">swaddle</span></button>
+    <button class="row" id="comeback" title="one hand slides her to the middle of her playground and lets go --- yours, when she is stuck at a fence or under a ball. nothing does this by itself any more">
+      <svg class="g" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.2"/><path d="M12 8.2v7.6M8.2 12h7.6"/></svg>
+      <span class="say">bring her back</span></button>
   </div>
   <!-- MUTE STAYS OUT HERE, and the owner is right that it has to.  It is the
        one control you want the instant a room full of sound starts and you
@@ -1305,6 +1311,23 @@ function makeCylinder(seg){
   for(i=0;i<seg;i++){ var a=i*2; idx.push(a,a+2,a+1, a+1,a+2,a+3); }
   return mesh(pos,nor,idx);
 }
+// A SQUARE PYRAMID, unit: base at y=-1 a unit wide each way, apex at y=+1 ---
+// so mBox(at, s, s, s) sets it exactly like the cube.  His shapes, 2026-09-13.
+function makePyramid(){
+  var p=[],n=[],idx=[];
+  var A=[0,1,0], B=[[-1,-1,-1],[1,-1,-1],[1,-1,1],[-1,-1,1]], k=1/Math.sqrt(5);
+  var sides=[[0,1,[0,k,-2*k]],[1,2,[2*k,k,0]],[2,3,[0,k,2*k]],[3,0,[-2*k,k,0]]];
+  for(var f=0;f<4;f++){
+    var a=B[sides[f][0]], b=B[sides[f][1]], nn=sides[f][2], base=p.length/3;
+    p.push(a[0],a[1],a[2], b[0],b[1],b[2], A[0],A[1],A[2]);
+    n.push(nn[0],nn[1],nn[2], nn[0],nn[1],nn[2], nn[0],nn[1],nn[2]);
+    idx.push(base,base+2,base+1);
+  }
+  var b0=p.length/3;
+  for(var i=0;i<4;i++){ var v=B[i]; p.push(v[0],v[1],v[2]); n.push(0,-1,0); }
+  idx.push(b0,b0+1,b0+2, b0,b0+2,b0+3);
+  return mesh(p,n,idx);
+}
 function makeBox(){
   var p=[],n=[],idx=[],f,s;
   var faces=[[0,1,0],[0,-1,0],[1,0,0],[-1,0,0],[0,0,1],[0,0,-1]];
@@ -1429,7 +1452,7 @@ function makeMirror(m){
   return mesh(pos,nor,idx);
 }
 
-var SPHERE=makeSphere(14,10), CYL=makeCylinder(12), BOX=makeBox();
+var SPHERE=makeSphere(14,10), CYL=makeCylinder(12), BOX=makeBox(), PYR=makePyramid();
 
 // ---------------------------------------------------------------------- paint --
 var dark = !matchMedia('(prefers-color-scheme: light)').matches;
@@ -2470,7 +2493,8 @@ function paint(p){
                                           // on a wrong size assumption)
     var mc=[Math.min(1,FLOORC[0]*1.12+0.02),Math.min(1,FLOORC[1]*1.12+0.02),
             Math.min(1,FLOORC[2]*1.12+0.02)];
-    drawFlat(BOX,mBox(v3(bcx,0.052,bcz),bhalfS,0.006,bhalfS),mc,true);
+    // ON THE FLOOR, not 5 cm over it (the old BASIN floor; his find 2026-09-13)
+    drawFlat(BOX,mBox(v3(bcx,0.003,bcz),bhalfS,0.003,bhalfS),mc,true);
     var bc=[Math.min(1,FLOORC[0]*1.38+0.05),Math.min(1,FLOORC[1]*1.38+0.05),
             Math.min(1,FLOORC[2]*1.38+0.05)];
     var bsp=0.4, bt=performance.now()/1000*0.12;
@@ -2481,9 +2505,9 @@ function paint(p){
       var d=bk+boff;
       if(d<-bhalfS+0.03||d>bhalfS-0.03) continue;
       if(alongX)
-        drawFlat(BOX,mBox(v3(bcx+d,0.075,bcz),0.016,0.02,bhalfS-0.05),bc,true);
+        drawFlat(BOX,mBox(v3(bcx+d,0.024,bcz),0.016,0.018,bhalfS-0.05),bc,true);
       else
-        drawFlat(BOX,mBox(v3(bcx,0.075,bcz+d),bhalfS-0.05,0.02,0.016),bc,true);
+        drawFlat(BOX,mBox(v3(bcx,0.024,bcz+d),bhalfS-0.05,0.018,0.016),bc,true);
     }
   }
   // NO BEDDING LAYER AT ALL.  The owner, twice: *"remove blanket, it looks
@@ -2559,6 +2583,10 @@ function paint(p){
       // is the doll, and drawing her marker too made her a planet with
       // legs ("])))" --- his screenshot, 2026-08-28)
       continue;
+    }else if(it.shape==='cube'){
+      draw(BOX,mBox(at,it.size,it.size,it.size),THING);
+    }else if(it.shape==='pyramid'){
+      draw(PYR,mBox(at,it.size,it.size,it.size),THING);
     }else{
       draw(SPHERE,mBall(at,it.size),THING);
       if(it.feeds>0&&it.left>0)
@@ -3395,6 +3423,12 @@ function floorSay(){ var el=document.getElementById('floor_val');
   if(el) el.textContent = FLOORM===null?'auto':(FLOORM?'on':'off');
   var row=document.getElementById('floorbtn');
   if(row) row.classList.toggle('on', FLOORM===true); }
+// THE BALLS, ON THEIR OWN --- his button, 2026-09-13.  /state.balls is the truth.
+(function(){ var row=document.getElementById('ballsbtn'); if(!row) return;
+  function say(){ var on=!!(STATE&&STATE.balls); var v=document.getElementById('balls_val');
+    if(v) v.textContent=on?'on':'off'; row.classList.toggle('on',on); }
+  row.addEventListener('click', function(){ var on=!!(STATE&&STATE.balls); world({balls:!on},null); setTimeout(say,400); });
+  setInterval(say,1000); })();
 (function(){ var row=document.getElementById('floorbtn'); if(!row) return;
   row.addEventListener('click', function(){
     FLOORM = FLOORM===null ? true : (FLOORM===true ? false : null);
@@ -3411,6 +3445,12 @@ function floorSay(){ var el=document.getElementById('floor_val');
     var on=!!(STATE&&STATE.bottle);
     world({bottle: !on}, null); setTimeout(say, 400); });
   setInterval(say, 1000); })();
+// BRING HER BACK --- his button, 2026-09-13.  The mother's automatic rescue and
+// lift are gone; this is the one hand that returns her to the middle.
+(function(){ var b=document.getElementById('comeback'); if(!b) return;
+  b.addEventListener('click', function(){
+    world({comeback:true},null);
+    b.classList.add('on'); setTimeout(function(){ b.classList.remove('on'); }, 3000); }); })();
 function helpPress(mode){
   // one press = the body takes or releases the hands, whatever the road's lag
   var was=HELP&&HELP.mode===mode&&!HELP.down;

@@ -96,6 +96,14 @@ SOUNDS: dict[str, list[tuple]] = {
     #  which is exactly what a lifted baby hears as her feet leave the bed.
     "up":    [(0.20, 640, 1190, 2390, 1.00, False),
               (0.10, 250, 900, 2300, 0.12, False)],
+    #  "down": d, then the open a sliding back and round toward u, then n with
+    #  the mouth shut --- what a baby hears as her feet meet the bed again.
+    #  The pair of "up" (his ask, 2026-09-13): a word for what happens to her
+    #  body, not for a thing she looks at.
+    "down":  [(0.03, 300, 1700, 2600, 0.15, False),
+              (0.14, 730, 1090, 2440, 1.00, False),
+              (0.12, 440, 1020, 2240, 0.90, False),
+              (0.16, 280, 1100, 2400, 0.35, True)],
     #  "milk": m, then i, then the tongue-side l, then the back stop.  F2
     #  starts LOW under the nose and LEAPS high at once --- the mirror of
     #  "mommy", whose F2 parks low through the whole first half.

@@ -43,7 +43,7 @@ from body import light, parts, speech
 from body.air import hear
 from body.alike import ALIKE_KINDS, FLOOR, SILENCE, _unit, level_of
 from body.ears import align
-from body.teacher import LIFT_HOLD, LIFT_TO, Teacher
+from body.teacher import LIFT_TO, Teacher
 from body.hearing import (LISTENS, LOOK_SECONDS, REGISTER, SOUND_BANDS,  # noqa: E501
                           SOUND_HOPS, SOUND_SLIDES, TICK_SECONDS,
                           bands_from_pcm, door, grabFor, wordFrames)
@@ -58,7 +58,7 @@ from body.ragdoll import _BONES, JIDX, Ragdoll   # `_BONES` is for DRAWING
 #: silently, because `Watched` overrides `snap` and nothing served `/pose`,
 #: so the only way to reach them was to run a plain `Her.live()`, which
 #: nothing does.  Two of her six body methods were dead and green.
-from body.room import ROOM, Room
+from body.room import PEN, ROOM, Room
 from body.window import Window
 from body import balance, orient, skin
 from mind.structure import Motor, Sensor, Spindle, Tick, View
@@ -389,6 +389,10 @@ class Her:
         #: the moving floor's own switch --- his button: None follows the
         #: hands (walk helper or his grab), True forces it, False parks it
         self.floorMoves: bool | None = None
+        #: HIS BUTTON, 2026-09-13: the three balls in the pen without the
+        #: moving floor --- *"she is not ready for it yet"*.  On, they stand
+        #: where they are, solid; they ride only while the floor moves.
+        self.balls: bool = False
         #: the belt's wandering direction --- his design, 2026-08-30: *"floor
         #: has to move in all direction randomly.  Left, right, forward,
         #: back... she will find the pass by her leg.  I don't need just
@@ -860,7 +864,8 @@ class Her:
         # hands (auto), True drives the floor whatever holds her or
         # nothing does, False parks it.
         drifting = auto if self.floorMoves is None else bool(self.floorMoves)
-        if not (auto or drifting):
+        balls = bool(getattr(self, "balls", False))
+        if not (auto or drifting or balls):
             return
         p, J = self.her.pos, JIDX
         under = self.room.under(p, self.her.radius)
@@ -907,6 +912,12 @@ class Her:
                         + float(self.her.radius[k]) + 0.02:
                     self.her.pos[k] += belt
                     self.her.prev[k] += belt
+        # THE BALLS ARE THINGS OF HER ROOM WHENEVER HE HAS THEM ON --- and they
+        # RIDE only while the floor moves (his ask, 2026-09-13: the balls
+        # without the moving floor).  Still, they are three solid things she
+        # can reach and bump; moving, they are what explains her feet.
+        if drifting or balls:
+            move9 = belt if drifting else np.zeros(3, np.float32)
             # THE RAILS SHE CAN SEE --- his insight, 2026-08-30: *"she
             # don't understand why she moves because everything around her
             # is stay in one place... these rails on floor, she has to see
@@ -916,19 +927,24 @@ class Her:
             # her cot.
             if not hasattr(self, "_rails"):
                 self._rails = [
-                    np.asarray([8.60, 0.11, 8.40], np.float32),
-                    np.asarray([9.30, 0.11, 9.10], np.float32),
-                    np.asarray([8.90, 0.11, 9.60], np.float32)]
+                    np.asarray([8.60, 0.12, 8.40], np.float32),   # resting ON the floor: centre = radius
+                    np.asarray([9.30, 0.12, 9.10], np.float32),
+                    np.asarray([8.90, 0.12, 9.60], np.float32)]
+            # BALL, PYRAMID, CUBE --- his ask, 2026-09-13: three shapes, so her
+            # eye has different shapes to look at.  Her flesh bumps each as a
+            # ball of the same size (below); her eye and the page draw the shape.
+            # "ball" is a THING_WORD: her mother names it when she looks at it.
+            shapes9 = ("ball", "pyramid", "cube")
             for i9, r9 in enumerate(self._rails):
-                r9 += belt
+                r9 += move9
                 for a9, lo9, hi9 in ((0, 8.20, 9.85), (2, 8.20, 9.85)):
                     if r9[a9] < lo9:
                         r9[a9] = hi9
                     elif r9[a9] > hi9:
                         r9[a9] = lo9
-                self.room.put("rail%d" % i9,
+                self.room.put(shapes9[i9],
                               (float(r9[0]), float(r9[1]), float(r9[2])),
-                              size=0.12)
+                              size=0.12, shape=shapes9[i9])
                 # ...AND A RAIL IS SOLID --- his order: *"they has to be
                 # fully real for her... maybe she will trying to avoid
                 # them."*  A joint inside a rail's ball is pushed out
@@ -947,8 +963,8 @@ class Her:
                     self.her.prev[touch9, 0] += push9[:, 0]
                     self.her.prev[touch9, 2] += push9[:, 1]
         elif hasattr(self, "_rails"):
-            for i9 in range(3):
-                self.room.take("rail%d" % i9)
+            for n9 in ("ball", "pyramid", "cube"):
+                self.room.take(n9)
             del self._rails
         if not auto:
             return
@@ -1112,6 +1128,22 @@ class Her:
         self.her.carrying[:] = False
         self.her.carried[:] = 0.0
         self.touch = None
+
+    def comeBack(self) -> None:
+        """HIS BUTTON: a hand slides her chest to the middle of where she is
+        --- the pen's centre when she is in the pen, the open floor's middle
+        otherwise --- two centimetres a tick, and lets go when she is there.
+        His word, 2026-09-13: the mother's own rescue (after a minute of
+        crying) and lift (after a minute of chatter) are gone; this is the one
+        hand that brings her back, and only he moves it.  Never over a
+        helper's hold."""
+        if self.helper is not None:
+            return
+        c = self.her.pos[JIDX["chest"]]
+        inPen = (PEN["x0"] <= c[0] <= PEN["x1"] and PEN["z0"] <= c[2] <= PEN["z1"])
+        self._rescueTo = (((PEN["x0"] + PEN["x1"]) / 2.0, 0.0, (PEN["z0"] + PEN["z1"]) / 2.0)
+                          if inPen else (0.0, 0.0, 0.0))
+        self._rescueTill = len(self.ticks) + 270             # three seconds, as the rescue was
 
     def give(self, milk: float) -> None:
         """SOMETHING AT HER LIPS.  Her body writes the line; she decides
@@ -1415,12 +1447,19 @@ class Her:
         # name says it is.
         sounding = []
         look9 = self._looking()
+        # A HAND TAKING HER, A HAND LETTING GO --- the moments her mother says
+        # "up" and "down" (teacher.EVENT_WORDS), and what his own words name
+        # while she is held.  His ask, 2026-09-13.
+        held9 = bool(self.her.carrying.any())
+        was9 = getattr(self, "_wasHeld", False)
+        doing9 = "lift" if (held9 and not was9) else ("letgo" if (was9 and not held9) else None)
+        self._wasHeld = held9
         # ONE TICK OF HIM A TICK.  He is already in her register when he reaches
         # the queue (`window.say`), so the door takes exactly a tick's worth and
         # his pace is his own.  (It took REGISTER ticks a tick and resampled
         # them down --- his voice ran 1.75x fast through her.)
         his = self.window.speech(self.earSeconds)
-        self.teacher.hears(his, looking=look9)
+        self.teacher.hears(his, looking=("lift" if held9 else look9))
         # HER EAR LISTENS `LISTENS` BACK TO NAME THIS TICK'S PIECE (hearing.py):
         # the last four ticks of his air, this tick's on the end; a tick with
         # nothing arriving ages the old air out with silence, so a word ends.
@@ -1569,7 +1608,7 @@ class Her:
                                  int(tick.life.input.echo.id),
                                  spoke,
                                  his is not None,
-                                 looking=look9)
+                                 looking=look9, doing=doing9)
         # HER MOTHER'S VOICE IS AIR IN THE ROOM.  His word, 2026-09-13: her
         # words used to arrive pre-cut into band frames --- converted for her,
         # past her ear.  Now `step` hands one tick of pcm; it goes into the
@@ -1589,65 +1628,14 @@ class Her:
         # hand slides her chest gently toward the open middle of the
         # room, three seconds, then lets go --- the same carried hand
         # the helpers use, never while a helper already holds her.
-        self.teacher.crying(spoke)
         self._lap("mother")
         # THE NIGHT SHIFT: the mom swaps the baby's situation every five
         # minutes --- helper, free floor, the other helper --- so a night
         # alone is a night of varied practice.  She re-applies only when
         # her own slot CHANGES, so his manual presses stand between swaps.
-        # THE LIFT: a minute of chatting while going nowhere, and the
-        # mom pulls her vertical by one hand to her whole length, holds a
-        # beat, and lets her drop --- moving becomes eventful again, and
-        # feeling good stops being free.  Never during a helper's hold or
-        # a rescue; hands alternate.
-        if (self.helper is None and not getattr(self, "_rescueTill", 0)
-                and not getattr(self, "_liftTill", 0)
-                and self.teacher.still(
-                    len(self.ticks), self.her.pos[JIDX["chest"]],
-                    float(made.max()) if made.size else 0.0)):
-            self.teacher.lifts = getattr(self.teacher, "lifts", 0) + 1
-            self._liftHand = JIDX["haL" if (len(self.ticks) // 9000) % 2 else "haR"]
-            self._liftTill = len(self.ticks) + 600      # a generous ceiling
-            self._liftHigh = 0
-            # THE RAMP IS ANCHORED WHERE THE LIFT BEGINS, and it must be
-            # anchored HERE --- this is the branch that starts a lift.  It
-            # was set only in the bored-baby branch below, so a lift that
-            # began without a bored hold before it read an attribute that
-            # did not exist: `AttributeError: no attribute '_liftY'` in
-            # `oneTick`, which is a HER TICK THREAD DYING --- her body
-            # frozen mid-life while the server went on answering with the
-            # last numbers it had.  Measured 2026-08-31: she stopped at
-            # tick 11,055,601 and nothing said so.
-            self._liftY = float(self.her.pos[self._liftHand, 1])
-        elif self.helper is not None and self.teacher._bored:
-            # A HELD BABY IS NOT A MOTIONLESS CHATTERER --- found
-            # 2026-08-30 by the heartbeat watch: `_bored` set on the free
-            # floor could only ever be CLEARED by `still()`, which never
-            # runs while a helper holds her --- so the silent treatment
-            # froze for ever the moment the walker picked her up, and the
-            # mom answered nothing for half an hour while the baby spoke.
-            # The mom's own hands on her end the treatment, as they would.
-            self.teacher._bored = False
-            if getattr(self, "_liftHand", None) is not None:
-                self._liftY = float(self.her.pos[self._liftHand, 1])
-        if getattr(self, "_liftTill", 0):
-            kL = self._liftHand
-            if len(self.ticks) >= self._liftTill or self._liftHigh > LIFT_HOLD:
-                self._liftTill = 0
-                self.her.carrying[kL] = False
-                self.her.carried[kL] = 0.0           # the drop
-            else:
-                # the hand climbs from ITS OWN last height, never from
-                # hers --- the walker's ramp lesson, paid once already:
-                # ramped off her dragged position the lift stalled at 0.42
-                self._liftY = min(self._liftY + 0.02, LIFT_TO)
-                atL = self.her.pos[kL].copy()
-                atL[1] = self._liftY
-                self.her.carry_at[kL] = atL
-                self.her.carried[kL] = 1.0
-                self.her.carrying[kL] = True
-                if self._liftY >= LIFT_TO:
-                    self._liftHigh = getattr(self, "_liftHigh", 0) + 1
+        # (The lift --- the mom pulling her up after a minute of chatter --- and
+        # the rescue after a minute of crying are gone: his word, 2026-09-13.
+        # The one hand that brings her back is his button, `comeBack()`.)
         slot = self.teacher.helperWanted(len(self.ticks))
         if slot != "off" and getattr(self, "_momSlot", "off") != slot:
             self._momSlot = slot
@@ -1656,16 +1644,17 @@ class Her:
         if self.teacher.on:
             if self.teacher.feedWanted(len(self.ticks)):
                 self.give(0.33)
-            if self.helper is None and self.teacher.rescueWanted():
-                self._rescueTill = len(self.ticks) + 90
         till = getattr(self, "_rescueTill", 0)
         if till and self.helper is None:
             k9 = JIDX["chest"]
             if len(self.ticks) < till:
                 at9 = self.her.pos[k9]
-                d9 = np.asarray([-at9[0], 0.0, -at9[2]], np.float32)
+                to9 = np.asarray(getattr(self, "_rescueTo", (0.0, 0.0, 0.0)), np.float32)
+                d9 = np.asarray([to9[0] - at9[0], 0.0, to9[2] - at9[2]], np.float32)
                 n9 = float(np.linalg.norm(d9))
-                if n9 > 1e-6:
+                if n9 <= 0.05:
+                    self._rescueTill = len(self.ticks)     # she is there: let go next tick
+                elif n9 > 1e-6:
                     at9 = at9 + d9 * (min(0.02, n9) / n9)
                 self.her.carry_at[k9] = at9
                 self.her.carried[k9] = 1.0

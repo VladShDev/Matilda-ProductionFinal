@@ -525,6 +525,7 @@ class Watched(Her):
             # so "did my swaddle arrive?" had no answer at all.
             "helper": self.helper,
             "floor": self.floorMoves,
+            "balls": bool(getattr(self, "balls", False)),
             "belt": ([round(float(self._beltDir[0]), 1),
                       round(float(self._beltDir[2]), 1)]
                      if (self.floorMoves is True
@@ -544,9 +545,7 @@ class Watched(Her):
                                   "shapes": self.teacher.shapes,
                                   "milks": self.teacher.milks,
                                   "named": getattr(self.teacher, "named", 0),
-                                  "namedWhat": dict(getattr(self.teacher, "namedWhat", {}) or {}),
-                                  "rescues": self.teacher.rescues,
-                                  "lifts": getattr(self.teacher, "lifts", 0)},
+                                  "namedWhat": dict(getattr(self.teacher, "namedWhat", {}) or {})},
                         "joints": (self.teacher.shape()
                                    if self.teacher.on else None)},
             #: how many times a loud sound has turned her --- glass, never hers
@@ -1405,11 +1404,19 @@ class Page(BaseHTTPRequestHandler):
                     HER.bottle = None
                     with HER.lock:
                         HER.room.take("bottle")
+            if "balls" in got:
+                # HIS BUTTON: the pen's three balls, with or without the belt
+                HER.balls = bool(got.get("balls"))
             if "floor" in got:
                 # HIS BUTTON for the walker's treadmill: true forces it on,
                 # false parks it, null returns it to the hands (auto)
                 want = got.get("floor")
                 HER.floorMoves = (None if want is None else bool(want))
+            if got.get("comeback"):
+                # HIS BUTTON: one hand brings her back to the middle of her
+                # playground (`alive.comeBack`); nothing automatic does it.
+                with HER.lock:
+                    HER.comeBack()
             if "helper" in got:
                 # ONE PRESS, THE BODY HOLDS.  walk / crawl / cradle / null.
                 want = got.get("helper")

@@ -93,11 +93,13 @@ NAME_KEEPS = 2          # her vocabulary: the two forms the baby says most
 #: is looking at, once per NAME_REST, as a mother does across a table.
 THING_WORDS = {"bottle": "milk", "teacher": "mama", "ball": "ball",
                "rattle": "rattle", "bear": "bear"}
+#: WORDS FOR WHAT HAPPENS TO HER BODY, said at the moment it happens --- his
+#: ask, 2026-09-13: "up" and "down", real meaning, by the same law that gave
+#: her "milk": the word arrives WITH the thing.  Here the thing is a hand
+#: taking her and a hand letting her go (`alive.py` watches her `carrying`).
+EVENT_WORDS = {"lift": "up", "letgo": "down"}
 NAME_REST = int(round(3.0 / _T))   # 3 s between namings of what she looks at
 #: THE WORD RULES, his answers of 2026-08-28 ("agree"):
-CRY_LVL = 0.05          # over half her loudest voice, sustained, is crying
-CRY_TICKS = _ticks(60.0)     # 60 seconds of it --- HIS NUMBER --- earns a
-                        # rescue.  It had shrunk to 20 s.
 FEED_AFTER = _ticks(1.0)     # the word FIRST, the milk a beat later (his own
                         # story: "tell her mommy before feed her")
 #: A REST UNTIL SHE IS HUNGRY AGAIN --- his own decision of 2026-09-05
@@ -175,19 +177,15 @@ ROUTINE = (None,)
 #: flor".  His diagnosis with it: while speaking she does not move at
 #: all --- the mom's answers pay her for chatting motionless, so
 #: stillness-with-talk is a paradise.  The trigger is exactly that:
-#: a minute of TALKING while her chest went nowhere.  Silent rest is
-#: never punished --- the sleep line lives on stillness, and his
-#: complaint was the chat, not the rest.
-STILL_WINDOW = _ticks(60.0)  # the minute she is judged over
-STILL_MOVE = 0.05       # a chest that netted under 5 cm went nowhere
-STILL_TALK = STILL_WINDOW // 4   # ...while sounding a quarter of the time
+#: (The mother's automatic hands --- the rescue after a minute of crying and
+#: the lift after a minute of chatter --- are gone: his word, 2026-09-13.  The
+#: one hand that brings her back is his button, `alive.comeBack()`.)
 LIFT_TO = 1.40          # the hand's height.  One-handed sag measured
                         # 0.15 and the mattress top is 0.34, so this is
                         # what a dangle above the cot costs against the
                         # one-hand sag (measured 0.41: the whole body
                         # argues against one snap point); the drop is real
                         # either way.
-LIFT_HOLD = _ticks(1.0 / 3)  # a beat at the top, then the drop
 
 
 class Teacher:
@@ -214,7 +212,6 @@ class Teacher:
         self._began = 0              # when the current utterance began
         self._lastKey = None         # the previous utterance's opening sound
         self._lastEnd = -10 ** 9     # ...and when it ended
-        self._cry = 0                # how long the baby has been crying
         self._feedAt = -1            # when the earned milk arrives
         self._fedAt = -10 ** 9       # last reward, for the rest
         self._his: list = []         # his current word, raw pcm chunks
@@ -252,18 +249,12 @@ class Teacher:
         #: eight-hour-old one, because they were never about either.
         self.word = None
         self.wordIds: list = []
-        self._anchor = None          # where her chest was a minute ago
-        self._anchorAt = 0
-        self._talk = 0               # sounding ticks inside the window
         #: THE MILESTONE METER --- glass, never implant: how the road to
         #: speech is going, countable from the page.
         self.answers = 0             # imitations she was given
         self.accents = 0             # his word said back to her, fully
         self.shapes = 0              # his words she said back (was: doubled shapes)
         self.milks = 0               # milk earned by a word
-        self.rescues = 0
-        self.lifts = 0
-        self._bored = False          # the silent treatment: a motionless
                                      # chatterer loses the mom's answers
                                      # until she moves
         self._shape = None           # her joints, computed once asked
@@ -398,7 +389,7 @@ class Teacher:
         got = self._namesHis.get(thing)
         if got is not None:
             return got
-        name = THING_WORDS.get(thing)
+        name = THING_WORDS.get(thing) or EVENT_WORDS.get(thing)
         if name is None or self.convert is None or name not in speech.SOUNDS:
             return None
         pcm = np.asarray(speech.word(name), np.float32)
@@ -436,7 +427,7 @@ class Teacher:
         self.wordIds = got
 
     def step(self, tick: int, made, soundId: int, herLvl: float,
-             hisTalking: bool, looking=None):
+             hisTalking: bool, looking=None, doing=None):
         """One tick of her.  Returns ONE TICK OF HER VOICE AS AIR (pcm at
         `speech.RATE`, `TICK_SAMPLES` long), or None when she is silent.
 
@@ -462,6 +453,15 @@ class Teacher:
         and squeak for milk).
         """
         self.saying = False
+        # A WORD FOR WHAT JUST HAPPENED TO HER, at the moment: a hand took her
+        # ("up") or let her go ("down") --- EVENT_WORDS, his ask 2026-09-13.
+        # It takes the floor from anything else she was about to say.
+        if self.on and doing is not None and str(doing) in EVENT_WORDS:
+            frames9 = self._tableWord(str(doing))
+            pcm9 = self._pcmHis.get(str(doing))
+            if frames9 and pcm9 is not None:
+                self._speak(str(doing), frames9, pcm9, tick)
+                self.named += 1
         # SHE NAMES WHAT THE BABY LOOKS AT, out loud, once per NAME_REST
         if (self.on and self._answer is None and looking is not None
                 and str(looking) in THING_WORDS and tick - self._namedLookAt >= NAME_REST):
@@ -612,52 +612,6 @@ class Teacher:
         return best
 
     # --- what the body asks her --------------------------------------------
-
-    def crying(self, herLvl: float) -> None:
-        """The mom hears sustained loudness; quiet mends her count fast."""
-        if not self.on:
-            self._cry = 0
-        elif herLvl > CRY_LVL:
-            self._cry += 1
-        else:
-            self._cry = max(0, self._cry - 5)
-
-    def rescueWanted(self) -> bool:
-        """60 seconds of continuous crying --- his number --- and she acts
-        once, then starts listening afresh."""
-        if self._cry >= CRY_TICKS:
-            self._cry = 0
-            self.rescues += 1
-            return True
-        return False
-
-    def still(self, tick: int, chest, herLvl: float) -> bool:
-        """A minute of talking while going nowhere --- the lift is due.
-        Judged on her chest's NET travel against an anchor, so solver
-        jitter cannot fake movement and real rolling cannot be missed."""
-        if not self.on:
-            self._anchor = None
-            self._talk = 0
-            return False
-        if herLvl > 0.0:
-            self._talk += 1
-        if self._anchor is None:
-            self._anchor = [float(v) for v in chest]
-            self._anchorAt = tick
-            return False
-        if tick - self._anchorAt < STILL_WINDOW:
-            return False
-        moved = sum((float(a2) - b2) ** 2
-                    for a2, b2 in zip(chest, self._anchor)) ** 0.5
-        due = moved < STILL_MOVE and self._talk >= STILL_TALK
-        if due:
-            self._bored = True       # the silent treatment begins
-        elif moved >= STILL_MOVE:
-            self._bored = False      # she moved: the mom is back
-        self._anchor = [float(v) for v in chest]
-        self._anchorAt = tick
-        self._talk = 0
-        return due
 
     def fed(self, tick: int) -> None:
         """THE NAMING CURRICULUM, first noun: milk is at her lips, and

@@ -218,6 +218,11 @@ class Thing:
     #: a person's job, like putting it there was.
     feeds: float = 0.0
     left: float = 0.0
+    #: ITS SHAPE --- "ball", "cube" or "pyramid".  His ask, 2026-09-13: the
+    #: pen's three things as three shapes, so her eye has different shapes to
+    #: look at.  Her flesh still meets each as its bounding sphere (`size`);
+    #: her eye and the page draw the shape itself.
+    shape: str = "ball"
 
     def __post_init__(self) -> None:
         self.at = np.asarray(self.at, np.float32).reshape(3)
@@ -225,7 +230,7 @@ class Thing:
     def as_json(self) -> dict:
         return {"what": self.what, "at": self.at.tolist(), "size": float(self.size),
                 "sounds": bool(self.sounds), "feeds": float(self.feeds),
-                "left": round(float(self.left), 4)}
+                "left": round(float(self.left), 4), "shape": str(self.shape)}
 
 
 @dataclass
@@ -572,8 +577,8 @@ class Room:
 
     def put(self, what: str, at, size: float = 0.08,
             sounds: bool = False, feeds: float = 0.0,
-            left: float = 0.0) -> Thing:
-        thing = Thing(what, at, size, sounds, feeds, left)
+            left: float = 0.0, shape: str = "ball") -> Thing:
+        thing = Thing(what, at, size, sounds, feeds, left, shape)
         self.things[what] = thing
         return thing
 
