@@ -4735,8 +4735,7 @@ fetch('/meta',{cache:'no-store'}).then(function(r){ return r.json(); }).then(fun
      and explains nothing. */
   var vw = d.view || [0, 0, 0];
   var ten = vw.length > 3
-    ? '
-bright ' + vw[3].toFixed(2) + '  warm ' + vw[4].toFixed(2) +
+    ? '\nbright ' + vw[3].toFixed(2) + '  warm ' + vw[4].toFixed(2) +
       '  shape ' + vw.slice(5).map(function (x) { return x.toFixed(2); }).join(' ')
     : '';
   box.querySelector('#eyeInfo').textContent =
