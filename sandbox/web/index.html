@@ -2698,16 +2698,25 @@ function paint(p){
   // at the skull's radius (a gaze turns the eye AROUND the head), and each is
   // built in the head's own frame --- across, up-on-skin, out --- and lifted
   // a hair off the skin.  The fractions are the same face as before.
-  var f9=norm(fwd), r9=norm(right), u9=norm(up), lift9=0.03*HR;
-  function onSkull(dir, sx, sy, sz){
+  var f9=norm(fwd), r9=norm(right), u9=norm(up);
+  function onSkull(dir, sx, sy, sz, lift){
     var n=norm(dir), a=norm(cross(u9,n)), b=cross(n,a);
-    var c=add(head, mul(n, HR+lift9));
+    var c=add(head, mul(n, HR+lift));
     return new Float32Array([a.x*sx,a.y*sx,a.z*sx,0, b.x*sy,b.y*sy,b.z*sy,0,
                              n.x*sz,n.y*sz,n.z*sz,0, c.x,c.y,c.z,1]);
   }
+  // AN EYE IS A WHITE AND A PUPIL, AND THE PUPIL IS WHAT MOVES.  His word,
+  // 2026-09-13 ("still ugly"): a black dot sliding over the skull is not an
+  // eye.  The white sits in its socket, half sunk in the skin; the pupil rides
+  // on the white and turns with her gaze, never leaving it.  The mouth is a
+  // dark lens as wide as before and as thin as a closed mouth: a line when
+  // shut, a gape when she cries.
+  var WHITE9=[0.97,0.96,0.94];
   [-1,1].forEach(function(s){
-    var d=add(add(mul(f9,0.885), mul(r9,0.430*s+0.34*gsx)), mul(u9,0.177+0.34*gsy));
-    drawFlat(SPHERE,onSkull(d, eyeR, eyeY, eyeR),OUTLINE,false);
+    var socket=add(add(mul(f9,0.885), mul(r9,0.430*s)), mul(u9,0.177));
+    drawFlat(SPHERE,onSkull(socket, eyeR, eyeY, 0.5*eyeR, 0.01*HR),WHITE9,false);
+    var pupil=add(socket, add(mul(r9,0.07*gsx), mul(u9,0.07*gsy)));
+    drawFlat(SPHERE,onSkull(pupil, 0.45*eyeR, 0.45*eyeY, 0.35*eyeR, 0.01*HR+0.45*eyeR),OUTLINE,false);
   });
   // HER MOUTH SHOWS HER OWN JAW.  His word, 2026-09-12: it hung open always
   // because it was drawn from loudness with a fat base, so it never shut and
@@ -2722,10 +2731,10 @@ function paint(p){
                      typeof vv.loud==='number'?vv.loud:0);
   var openness=Math.max(0,vop*(1-vcl));
   var mo=(0.012+openness*0.40+vloud*0.10)*HR,
-      moX=0.227*HR, moZ=0.159*HR;
+      moX=0.227*HR;
   // ...and the mouth the same way: across her face, open along her skin's up,
-  // its depth out along the skull's normal --- never along the world's Z.
-  drawFlat(SPHERE,onSkull(add(mul(f9,0.899), mul(u9,-0.437)), moX, mo, moZ),OUTLINE,false);
+  // a line ON the skin when shut, a cavity only as it opens --- never a shelf.
+  drawFlat(SPHERE,onSkull(add(mul(f9,0.899), mul(u9,-0.437)), moX, mo, 0.02*HR+0.3*mo, 0.005*HR),OUTLINE,false);
 
   // YOU: the window flying in her room. Its position came down the same wire as
   // her joints, computed by the app on the same clock — so what she can see of
