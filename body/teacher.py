@@ -149,10 +149,6 @@ HIS_GAP = _ticks(0.3)   # of quiet ends one of his words
 HIS_WORD_MOST = int(round(3.0 * speech.RATE))
 #: ONE TICK OF HER VOICE, IN SAMPLES --- what `step` hands the body as air
 TICK_SAMPLES = int(round(speech.RATE * TICK_SECONDS))
-#: HOW MANY OF HIS WORDS SHE KEEPS --- the latest ones.  His word, 2026-09-13:
-#: a mic left on beside a TV made a "word" of every loud stretch, and the list
-#: had no end (and was rewritten whole to mom.json on each).  His to set.
-HIS_WORDS = 32
 #: (her mother keeps every word of his --- his, 2026-09-06; a rotating nine went)
                         # widened 6 -> 9 on his word (2026-08-30, "I
                         # agree with all your suggestion"): eat, step and
@@ -383,18 +379,18 @@ class Teacher:
         # nothing raised.  The same gate her ear uses, nothing new.
         if float(np.abs(word).max()) <= GATE:
             return
+        # A WORD OF HIS IS KEPT ONLY AS THE NAME OF WHAT SHE LOOKS AT (or of the
+        # hand on her).  His find, 2026-09-13: with a free list, twenty minutes
+        # of his mic beside her filled her mother with 32 stretches of his
+        # dictation --- no word in any of them --- and she said them back at
+        # random.  Nothing said while she looks at nothing is kept.
+        if not looking:
+            return
         frames = self.convert(word)
         if not frames:
             return
-        self._hisLex.append(frames)
-        # ...and the sound it was made from, kept in step with it
-        self._hisPcm.append(np.asarray(word, np.float32).copy())
-        if len(self._hisLex) > HIS_WORDS:
-            del self._hisLex[:-HIS_WORDS]
-            del self._hisPcm[:-HIS_WORDS]
-        if looking and str(looking) not in self._namesHis:
-            self._namesHis[str(looking)] = frames
-            self._pcmHis[str(looking)] = np.asarray(word, np.float32).copy()
+        self._namesHis[str(looking)] = frames
+        self._pcmHis[str(looking)] = np.asarray(word, np.float32).copy()
         self._keepVocab()
 
     def recut(self) -> None:
@@ -455,7 +451,6 @@ class Teacher:
         # WHAT IT SOUNDED LIKE, if this word came from one of his.  A word she
         # built out of the baby's own forms has no recording behind it and
         # leaves this None, which is the truth.
-        self.saidPcm = self._pcmHis.get(str(name))
         got = []
         for f in frames:
             if f is None:
@@ -572,6 +567,11 @@ class Teacher:
         if self._answer is not None and tick >= self._due:
             # ONE TICK OF THE WORD, AS AIR
             pcm, at = self._answer
+            if at == 0:
+                # FOR HIS SPEAKER, THE MOMENT HER AIR STARTS --- not when the
+                # word was queued (his find, 2026-09-13: he heard her mother
+                # before her ear bars moved).
+                self.saidPcm = pcm
             out = np.asarray(pcm[at:at + TICK_SAMPLES], np.float32)
             if at + TICK_SAMPLES >= len(pcm):
                 self._answer = None
@@ -586,20 +586,13 @@ class Teacher:
             return out
         if (tick - self._quietAt >= NAMES_AFTER
                 and tick - self._saidAt >= REFRACTORY
-                and (self._namesHis or self._hisLex)):
+                and self._namesHis):
             # THE ROOM IS QUIET: the word for what the baby looks at (or for
             # nowhere), else one of his words in rotation --- as her air.
             name9 = str(looking) if looking else "nowhere"
             w9, p9 = self._namesHis.get(name9), self._pcmHis.get(name9)
             if w9 is not None and p9 is not None:
                 self._speak(name9, w9, p9, tick)
-                self._quietAt = tick
-                self.named += 1
-                return None
-            if self._hisLex and self._hisPcm:
-                n9 = min(len(self._hisLex), len(self._hisPcm))
-                at = (tick // NAMES_AFTER) % n9
-                self._speak("his word %d" % at, self._hisLex[at], self._hisPcm[at], tick)
                 self._quietAt = tick
                 self.named += 1
                 return None
@@ -638,9 +631,7 @@ class Teacher:
         u = set(self._ids(frames))
         if not u:
             return None
-        cands = [("his word %d" % k, w, self._hisPcm[k])
-                 for k, w in enumerate(self._hisLex) if k < len(self._hisPcm)]
-        cands += [(t, w, self._pcmHis.get(t)) for t, w in self._namesHis.items()]
+        cands = [(t, w, self._pcmHis.get(t)) for t, w in self._namesHis.items()]
         best, score = None, 0
         for name, w, pcm in cands:
             if pcm is None:
