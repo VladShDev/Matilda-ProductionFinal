@@ -1331,7 +1331,10 @@ function groundHeight(x,z,bed){
   var out=Math.hypot(x/bed.x, z/bed.z);
   var rim=Math.max(0,Math.min(1, 1-(out-1)/SKIRT));
   var dish=Math.min(out,1);
-  return bed.top*rim + BASIN*dish*dish;
+  // THE BOWL FADES WITH THE RIM --- mirrors room.under() as fixed 2026-09-13:
+  // outside the cot the floor is 0, where her eye draws it; balls and her
+  // mother's feet sat 5 cm sunk in a floor drawn at BASIN.
+  return rim*(bed.top + BASIN*dish*dish);
 }
 // `only`: 0 draws everything, +1 only the dish her bed makes, -1 only the flat
 // floor beyond it.  ONE SURFACE, ONE JOB --- the floor mesh used to draw the
